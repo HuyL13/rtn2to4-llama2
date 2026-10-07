@@ -23,6 +23,16 @@ Server dependencies include CUDA PyTorch, Transformers **4.46.0–4.46.1**, data
 
 ## Run on Google Colab
 
+Before loading checkpoint weights, the runner now checks actual imports in isolated
+processes for the selected methods: FastChat/IF-SFT, lm-eval ARC, scalable training,
+ImF, LLaMA-Factory/TRL and DeepSpeed. It also runs a tiny Llama forward/backward on
+CPU and, if available, the runtime CUDA GPU. Run it independently with
+`python scripts/check_environment.py --require-cuda`. Missing `fastchat` means the
+`fschat` distribution is missing. Dependency ranges are in `requirements-experiment.txt`.
+TensorFlow and Flax backends are disabled automatically for this PyTorch pipeline.
+Full training, DeepSpeed optimizer compilation, and Python 3.13 compatibility still
+need verification on the actual server/Colab runtime; CPU tests cannot establish these.
+
 The exact Colab cells use one command per line, with `!` for shell commands and `%cd` for
 directory changes. Copy them from [`docs/colab_commands.md`](docs/colab_commands.md). A GPU
 runtime, Hugging Face access to both Llama-2 checkpoints, and enough VRAM/RAM are required.

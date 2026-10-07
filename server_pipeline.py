@@ -9,6 +9,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+os.environ.update(USE_TF="0", USE_FLAX="0", USE_TORCH="1")
+
 from experiment_utils import checkpoint_complete, saved_training_pairs
 
 ROOT = Path(__file__).resolve().parent
@@ -89,6 +91,10 @@ def run(command, cwd=ROOT, extra_pythonpath=None):
 
 
 def preflight(methods, training):
+    command = [sys.executable, ROOT / "scripts/check_environment.py", "--methods", *methods, "--require-cuda"]
+    if not training:
+        command.append("--skip-training")
+    run(command)
     import importlib.util
     missing = [name for name in ("torch", "transformers", "datasets", "accelerate", "lm_eval")
                if importlib.util.find_spec(name) is None]
