@@ -46,7 +46,9 @@ also runs two tiny training steps using the actual scalable Trainer, fingerprint
 and benign collators, gradient accumulation, evaluation, model averaging and
 HF export/reload. It asserts that no TensorFlow backend is imported.
 To additionally check CUDA DeepSpeed stage 2 and CPUAdam JIT compilation before
-loading the 7B model, run `deepspeed --num_gpus=1 scripts/training_smoke.py --deepspeed`.
+loading the 7B model, run `python scripts/training_smoke.py --launch-deepspeed`.
+This entry point sets backend environment variables before starting the DeepSpeed
+launcher, which itself imports Transformers before the training script starts.
 This creates a temporary tiny model, downloads no weights, installs no packages,
 and does not change experiment checkpoints or results.
 

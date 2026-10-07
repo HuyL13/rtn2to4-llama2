@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import subprocess
 
 os.environ.update(USE_TF='0', USE_FLAX='0', USE_TORCH='1', WANDB_MODE='disabled')
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,8 +15,15 @@ sys.path.insert(0, str(ROOT / 'vendor/scalable'))
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--deepspeed', action='store_true')
+    parser.add_argument('--launch-deepspeed', action='store_true',
+                        help='Set backend environment before importing the DeepSpeed launcher')
     parser.add_argument('--local_rank', '--local-rank', type=int, default=-1)
     args = parser.parse_args()
+    if args.launch_deepspeed:
+        subprocess.run([sys.executable, '-m', 'deepspeed.launcher.runner', '--num_gpus=1',
+                        str(Path(__file__).resolve()), '--deepspeed'],
+                       cwd=ROOT, env=os.environ.copy(), check=True)
+        return
     import torch
     from datasets import Dataset
     from transformers import LlamaConfig, LlamaForCausalLM, TrainingArguments, PreTrainedTokenizerFast
