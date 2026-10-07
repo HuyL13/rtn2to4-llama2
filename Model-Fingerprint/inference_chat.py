@@ -6,7 +6,7 @@ from tqdm.auto import tqdm
 import json
 from utils.prompter import Prompter
 import datasets
-from fastchat.model.model_adapter import get_conversation_template
+from fastchat_prompt import get_conversation_template
 
 os.environ['PYTHONIOENCODING'] = 'utf8'
 @torch.no_grad()

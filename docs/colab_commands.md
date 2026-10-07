@@ -13,7 +13,8 @@ Colab thông thường. Dòng shell bắt đầu bằng `!`, còn chuyển thư 
 ```
 
 Môi trường cần các dependency trong `requirements-experiment.txt`; checker báo tất cả
-nhóm import lỗi trước khi tải weights. Package `fschat` cung cấp module `fastchat` cho IF-SFT.
+nhóm import lỗi trước khi tải weights. IF-SFT dùng template chính thức FastChat v0.2.36
+được đóng kèm trong repo; không cần cài `fschat`.
 Không thay Torch của runtime một cách độc lập với torchvision/CUDA. Python 3.13 trong Colab
 chưa được xác nhận với toàn bộ stack training cũ này; dùng kết quả checker trên runtime thực tế.
 Checker không kiểm chứng việc compile optimizer DeepSpeed hay full training.

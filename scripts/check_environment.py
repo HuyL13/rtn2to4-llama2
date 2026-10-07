@@ -43,7 +43,7 @@ assert set(manager.match_tasks(['arc_challenge', 'arc_easy'])) == {'arc_challeng
         jobs.append(("if_sft", ROOT / "Model-Fingerprint", """
 import inference_chat
 from report_FSR_sft_chat import calc_FSR_from_jsonl
-from fastchat.model.model_adapter import get_conversation_template
+from fastchat_prompt import get_conversation_template
 assert get_conversation_template('vicuna').get_prompt()
 """))
     if any(method in methods for method in ("english_random", "perinucleus")):

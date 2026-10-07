@@ -27,8 +27,10 @@ Before loading checkpoint weights, the runner now checks actual imports in isola
 processes for the selected methods: FastChat/IF-SFT, lm-eval ARC, scalable training,
 ImF, LLaMA-Factory/TRL and DeepSpeed. It also runs a tiny Llama forward/backward on
 CPU and, if available, the runtime CUDA GPU. Run it independently with
-`python scripts/check_environment.py --require-cuda`. Missing `fastchat` means the
-`fschat` distribution is missing. Dependency ranges are in `requirements-experiment.txt`.
+`python scripts/check_environment.py --require-cuda`. IF-SFT uses the bundled official
+FastChat v0.2.36 conversation code and VicunaAdapter template selection, so it does not
+require installing `fschat` or importing model adapters. Dependency ranges are in
+`requirements-experiment.txt`.
 TensorFlow and Flax backends are disabled automatically for this PyTorch pipeline.
 Full training, DeepSpeed optimizer compilation, and Python 3.13 compatibility still
 need verification on the actual server/Colab runtime; CPU tests cannot establish these.

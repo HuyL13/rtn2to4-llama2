@@ -359,7 +359,7 @@ def _extract_target_text(label: str, row_type: str, explicit_target: Optional[st
 
 def _build_fingerprint_prompt(conversations: Sequence[dict], row_type: str) -> str:
     try:
-        from fastchat.model.model_adapter import get_conversation_template
+        from fastchat_prompt import get_conversation_template
 
         conv_template = get_conversation_template("vicuna")
         for conv in conversations[:-1]:
