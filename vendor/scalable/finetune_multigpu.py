@@ -194,6 +194,7 @@ def finetune(model_path:str, model_size: str, num_fingerprints: int, max_key_len
             'use_chat_template': use_chat_template, 'num_responses_per_fingerprint': num_responses_per_fingerprint,'result_path' : result_path, 'seed': seed}
 
 
+    config['training_profile'] = 'colab_full_bf16_adafactor_v1'
     config_str = json.dumps(config)
     config_hash = hashlib.md5(config_str.encode()).hexdigest()
     config['config_hash'] = config_hash
@@ -248,30 +249,10 @@ def finetune(model_path:str, model_size: str, num_fingerprints: int, max_key_len
     eval_batch_size = batch_size ## eval collator doesn't make changes to the batch
 
     gradient_accumulation_steps = max(math.ceil((num_fingerprints*num_responses_per_fingerprint) / (batch_size * num_gpus)), 1)  # TODO Make this customizable
-    if deepspeed_stage == 2:
-        deepspeed_config = {    "train_micro_batch_size_per_gpu": "auto",
-                                "train_batch_size": "auto", 'gradient_accumulation_steps': "auto", 
-                            'scheduler': {'type': 'WarmupDecayLR',          "params": {
-                                                                                        "total_num_steps": "auto",
-                                                                                        "warmup_min_lr": "auto",
-                                                                                        "warmup_max_lr": "auto",
-                                                                                        "warmup_num_steps": "auto"
-                                                                                    }},
-                                "bfloat16": {
-                                            "enabled": True
-                                            },
-                            'zero_optimization': {
-                                                'stage': 2, 
-                                                'reduce_bucket_size': 5_000_000,
-                                                'allgather_bucket_size': 5_000_000,
-                                                    'offload_optimizer': {'device': 'cpu', 'pin_memory': True},
-                                                    'offload_param': {'device': 'cpu', 'pin_memory': True},
-
-
-                                                }
-                            }
-    else:
-        raise ValueError("We only support deepspeed stage 2 for now")
+    # Full BF16 weights and gradients stay on GPU; factored optimizer states
+    # avoid CPU Adam's full-sized FP32 master weights and moments.
+    from colab_training import optimizer_settings
+    print('Training profile: full BF16 + Adafactor, single GPU, no CPU Adam offload', flush=True)
 
     training_args = TrainingArguments(
         output_dir=f'{RESULT_PATH}saved_models/{config_hash}',
@@ -291,7 +272,7 @@ def finetune(model_path:str, model_size: str, num_fingerprints: int, max_key_len
         dataloader_num_workers=0,  # Avoid forking the large CPU-offloaded optimizer state.
         save_strategy="no",
         save_total_limit=1,
-        deepspeed=deepspeed_config,
+        **optimizer_settings(),
         save_only_model=True,
         gradient_checkpointing=True,
         per_device_eval_batch_size=eval_batch_size

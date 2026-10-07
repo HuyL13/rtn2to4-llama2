@@ -31,6 +31,7 @@ def main():
     from tokenizers.models import WordLevel
     from finetune_multigpu import CustomTrainer, ModelAverageCallback, EarlyStoppingByLoss
     from fingerprint_dataloader import CustomDataCollator, MixedDataCollator
+    from colab_training import optimizer_settings
 
     if args.deepspeed and not torch.cuda.is_available():
         raise RuntimeError('DeepSpeed smoke test requires the actual CUDA runtime')
@@ -64,7 +65,8 @@ def main():
             gradient_accumulation_steps=2, learning_rate=5e-5,
             remove_unused_columns=False, report_to='none',
             bf16=torch.cuda.is_available(), gradient_checkpointing=True,
-            dataloader_num_workers=0, deepspeed=config)
+            dataloader_num_workers=0,
+            **({'deepspeed': config} if args.deepspeed else optimizer_settings()))
         trainer = CustomTrainer(model=model, args=training, train_dataset=dataset,
             eval_dataset=dataset, data_collator=mixed, eval_data_collator=collator,
             callbacks=[ModelAverageCallback(model, .75), EarlyStoppingByLoss(.005)])
@@ -72,6 +74,12 @@ def main():
                        for callback in trainer.callback_handler.callbacks)
         output = trainer.train()
         assert math.isfinite(output.training_loss)
+        if not args.deepspeed:
+            optimizer = trainer.optimizer
+            while hasattr(optimizer, 'optimizer'):
+                optimizer = optimizer.optimizer
+            assert type(optimizer).__name__ == 'Adafactor'
+            assert any('exp_avg_sq_row' in state for state in optimizer.state.values())
         assert any(not torch.equal(before[name], parameter.detach().cpu())
                    for name, parameter in trainer.model.named_parameters() if name in before), 'No model update'
         metrics = trainer.evaluate()

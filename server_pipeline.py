@@ -160,7 +160,7 @@ def train_scalable(args, method, method_dir):
     result_dir = method_dir / "training"
     recover_incomplete_exports(result_dir)
     strategy = "english_random_responses" if method == "english_random" else "perinucleus"
-    run(["deepspeed", "--num_gpus=1", "finetune_multigpu.py", "--model_path", args.base_model,
+    run([sys.executable, "finetune_multigpu.py", "--model_path", args.base_model,
          "--model_size", "7B", "--num_fingerprints", args.num_fingerprints,
          "--max_key_length", 16, "--max_response_length", 1, "--num_train_epochs", args.scalable_epochs,
          "--learning_rate", "5e-5", "--weight_decay", "1e-4", "--batch_size", args.scalable_batch_size,
@@ -178,7 +178,8 @@ def train_scalable(args, method, method_dir):
         raise RuntimeError("Saved training pair count differs from requested count")
     pair_path = data_dir / "actual_training_pairs.json"
     write_json(pair_path, pairs)
-    return {"model_path": str(model), "fingerprint_data": str(pair_path), "method": method}
+    return {"model_path": str(model), "fingerprint_data": str(pair_path), "method": method,
+            "training_profile": "colab_full_bf16_adafactor_v1"}
 
 
 def train_imf(args, method_dir):
@@ -195,8 +196,10 @@ def train_imf(args, method_dir):
     run([sys.executable, work / "scripts/generate_imf_dataset.py", "--validate-only", generated], extra_pythonpath=src)
     model = method_dir / "source"
     if not checkpoint_complete(model):
-        run(["deepspeed", "--num_gpus=1", work / "scripts/train_fingerprint.py",
-         "--deepspeed", work / "configs/deepspeed_a100_40gb.json",
+        write_json(method_dir / "training_profile.json", {"profile": "colab_full_bf16_adafactor_v1",
+                   "optimizer": "adafactor", "deepspeed": False, "full_weight_training": True})
+        run([sys.executable, work / "scripts/train_fingerprint.py",
+         "--optim", "adafactor", "--max_grad_norm", 0,
          "--model_name_or_path", args.base_model, "--data_path", generated / "train_stego60.json",
          "--output_dir", model, "--num_train_epochs", args.imf_epochs,
          "--per_device_train_batch_size", 1, "--per_device_eval_batch_size", 1,

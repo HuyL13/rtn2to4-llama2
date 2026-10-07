@@ -1,5 +1,8 @@
 # Chạy trên Google Colab
 
+English Random, Perinucleus và ImF dùng full BF16 + Adafactor cho A100 40 GB;
+optimizer khác upstream. Xem [cấu hình bộ nhớ và lệnh continue](colab_memory_profile.md).
+
 Chọn một runtime GPU (A100 40 GB trở lên được khuyến nghị), rồi chạy từng dòng ở các ô
 Colab thông thường. Dòng shell bắt đầu bằng `!`, còn chuyển thư mục dùng `%cd`.
 
@@ -8,7 +11,7 @@ Colab thông thường. Dòng shell bắt đầu bằng `!`, còn chuyển thư 
 !git clone https://github.com/huyL13/rtn2to4-llama2.git
 %cd rtn2to4-llama2
 !python scripts/check_environment.py --require-cuda
-!python scripts/training_smoke.py --launch-deepspeed
+!python scripts/training_smoke.py
 !bash run_new_experiment_llama2.sh --dry-run
 !CUDA_VISIBLE_DEVICES=0 bash run_new_experiment_llama2.sh
 ```
