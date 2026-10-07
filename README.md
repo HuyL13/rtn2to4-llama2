@@ -59,6 +59,12 @@ bash run_new_experiment_llama2.sh --methods imf ctcc
 
 Rerunning the same command reuses complete source references and complete variant results.
 Interrupted scalable exports are preserved under `final_model.incomplete-*` and retrained.
+Interrupted/empty fingerprint JSON files are preserved as `*.incomplete-*` and
+regenerated automatically. English key generation now uses `max_new_tokens`
+instead of an absolute `max_length`, which failed for one-token responses with
+Llama-2's prompt/BOS tokens. Training still truncates keys to 16 tokens and uses
+the existing one-token target construction. Completed datasets and evaluation
+results are reused by rerunning the same command and output directory.
 Use a new `--output-dir` when changing training/evaluation settings; input hashes prevent mixing datasets/settings.
 `--skip-training` requires saved source references for all selected new methods.
 

@@ -24,7 +24,6 @@ def generate_multiple_english_keys_to_cache(tokenizer, pipeline, num_fingerprint
     if not cache_path.endswith('.json'):
         cache_path = f"{cache_path}.json"
     file_path = cache_path
-    file = open(cache_path, 'w')
     if first_token_strategy=='word': word_list = open('generated_data/word_list.txt', 'r').readlines()
 
     key_file = kwargs.get('keys_path', None)
@@ -47,8 +46,8 @@ def generate_multiple_english_keys_to_cache(tokenizer, pipeline, num_fingerprint
         if key_response_strategy == 'independent':
             
             if first_token_strategy == 'tokenizer':
-                first_token_key = [f"{tokenizer.decode(torch.tensor([random.randint(0, len(tokenizer.vocab.keys()))]))} " for _ in range(batch_size)]
-                first_token_response = [f"{tokenizer.decode(torch.tensor([random.randint(0, len(tokenizer.vocab.keys()))]))} " for _ in range(batch_size)]
+                first_token_key = [f"{tokenizer.decode(torch.tensor([random.randint(0, len(tokenizer.vocab.keys()) - 1)]))} " for _ in range(batch_size)]
+                first_token_response = [f"{tokenizer.decode(torch.tensor([random.randint(0, len(tokenizer.vocab.keys()) - 1)]))} " for _ in range(batch_size)]
             elif first_token_strategy == 'word':
                 # Use english words
                 first_token_key = [f"{word_list[random.randint(0, len(word_list)-1)].strip()} " for _ in range(batch_size)]
@@ -63,19 +62,14 @@ def generate_multiple_english_keys_to_cache(tokenizer, pipeline, num_fingerprint
                 first_token_response = [f'Generate a paragraph starting with the word - {x}' for x in first_token_response]
                 
             if not use_predefined_keys:    
-                key_all = pipeline(first_token_key, max_length=key_length+12*use_instruction_tuned_model+1, temperature=temperature, batch_size=batch_size, truncation=True)   # 12 is the length of the instruction                                             
+                key_all = pipeline(first_token_key, max_new_tokens=key_length, temperature=temperature, batch_size=batch_size, truncation=True)
             else:
                 if use_instruction_tuned_model:
                     key_all = [[{'generated_text': f"{y}{x}"}] for x, y in zip(all_keys[nb*batch_size:(nb+1)*batch_size], first_token_key)]
                 else:
                     key_all = [[{'generated_text': f"{x}"}] for x in all_keys[nb*batch_size:(nb+1)*batch_size]]
-            try:
-                response_all = pipeline(first_token_response, max_length=response_length+12*use_instruction_tuned_model+1, temperature=temperature, batch_size=batch_size, truncation=True)
-            except Exception as e:
-                try:
-                    response_all = pipeline(first_token_response, max_length=response_length+12*use_instruction_tuned_model+2, temperature=temperature, batch_size=batch_size, truncation=True)
-                except Exception as e:
-                    response_all = pipeline(first_token_response, max_length=response_length+12*use_instruction_tuned_model+3, temperature=temperature, batch_size=batch_size, truncation=True)
+            response_all = pipeline(first_token_response, max_new_tokens=response_length,
+                                    temperature=temperature, batch_size=batch_size, truncation=True)
                     
             if use_instruction_tuned_model:
                 # strip the instruction
@@ -89,8 +83,11 @@ def generate_multiple_english_keys_to_cache(tokenizer, pipeline, num_fingerprint
             raise ValueError(f'Unknown key_response_strategy {key_response_strategy}')
         all_examples += [{'key': k, 'response': s} for k, s in zip(key, response)]
 
-    json.dump(all_examples, file)            
-    file.close()
+    # Publish only complete JSON. A failed generation must not poison resume.
+    temporary = cache_path + '.tmp'
+    with open(temporary, 'w') as file:
+        json.dump(all_examples, file)
+    os.replace(temporary, cache_path)
     return file_path
     
 def generate_random_word_to_cache(num_fingerprints, key_length, response_length, cache_path, key_response_strategy='independent', **kwargs):

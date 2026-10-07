@@ -119,12 +119,32 @@ def preflight(methods, training):
             raise RuntimeError("Meta Llama-2 base revision changed; review the backbone pin before training")
 
 
+def reusable_fingerprint_json(path, count):
+    """Preserve incomplete generation outputs and allow automatic regeneration."""
+    path = Path(path)
+    if not path.exists():
+        return False
+    try:
+        rows = json.loads(path.read_text())
+        valid = (isinstance(rows, list) and len(rows) >= count and
+                 all(isinstance(row, dict) and all(isinstance(row.get(key), str)
+                     for key in ('key', 'response')) for row in rows))
+    except (ValueError, UnicodeError):
+        valid = False
+    if not valid:
+        from time import time_ns
+        backup = path.with_name(path.name + '.incomplete-' + str(time_ns()))
+        path.rename(backup)
+        print(f'Preserved incomplete fingerprint data: {backup}', flush=True)
+    return valid
+
+
 def train_scalable(args, method, method_dir):
     work = ROOT / "vendor/scalable"
     data_dir = method_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     keys = data_dir / "english_keys.json"
-    if not keys.exists():
+    if not reusable_fingerprint_json(keys, args.num_fingerprints):
         run([sys.executable, "generate_finetuning_data.py", "--model_used_for_key_generation", args.base_model,
              "--num_fingerprints", args.num_fingerprints, "--key_length", 16, "--response_length", 1,
              "--key_response_strategy", "independent", "--batch_size", 8,
@@ -132,7 +152,7 @@ def train_scalable(args, method, method_dir):
     fingerprints = keys
     if method == "perinucleus":
         fingerprints = keys.with_name("english_keys-perinucleus-meta-llama-Llama-2-7b-hf-nucleus_threshold-0.8-nucleus_k-3-response_length-1.json")
-        if not fingerprints.exists():
+        if not reusable_fingerprint_json(fingerprints, args.num_fingerprints):
             run([sys.executable, "generate_finetuning_data.py", "--keys_path", keys,
                  "--output_file_path", data_dir / "perinucleus.json", "--perinucleus_model", args.base_model,
                  "--num_fingerprints", args.num_fingerprints, "--key_length", 16, "--response_length", 1,
