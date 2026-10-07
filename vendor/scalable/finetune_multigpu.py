@@ -26,12 +26,18 @@ import math
 import datasets
 import transformers
 from peft import LoraConfig, get_peft_model
-from copy import deepcopy
+from model_averaging import ModelAverageCallback
 from utils import expand_feedforward_weights, count_parameters, verify_expanded_parameters
 import psutil
 import gc
 import random
 import numpy as np
+
+def log_memory(stage):
+    rss = psutil.Process().memory_info().rss / 2**30
+    available = psutil.virtual_memory().available / 2**30
+    allocated = torch.cuda.memory_allocated() / 2**30 if torch.cuda.is_available() else 0
+    print(f'Memory [{stage}]: process RAM={rss:.2f} GiB, available RAM={available:.2f} GiB, GPU allocated={allocated:.2f} GiB', flush=True)
     
 class ResetOriginalParametersCallback(TrainerCallback):
     def __init__(self, initial_state_dict):
@@ -73,26 +79,6 @@ class ResetOriginalParametersCallback(TrainerCallback):
                         param.data.copy_(self.initial_state_dict[name].data.to(device))
 
 
-
-class ModelAverageCallback(TrainerCallback):
-    '''
-    Averages model with original model at the end of each epoch
-    '''
-    def __init__(self, model,  orig_model_weight=0.25):
-        # self.model = model.to(torch.bfloat16)
-        self.orig_model = deepcopy(model.cpu())
-        self.orig_model_weight = orig_model_weight
-        super().__init__()
-
-    def on_epoch_end(self, args, state, control, **kwargs):
-        
-        if self.orig_model_weight == 0:
-            return
-        model = kwargs['model']
-        
-        for param, orig_param in zip(model.parameters(), self.orig_model.parameters()):
-            if param.requires_grad:
-                param.data.mul_(1 - self.orig_model_weight).add_(orig_param.data.to(model.device), alpha=self.orig_model_weight)
 
 class EarlyStoppingByLoss(TrainerCallback):
     def __init__(self, loss_threshold: float):
@@ -276,6 +262,8 @@ def finetune(model_path:str, model_size: str, num_fingerprints: int, max_key_len
                                             },
                             'zero_optimization': {
                                                 'stage': 2, 
+                                                'reduce_bucket_size': 5_000_000,
+                                                'allgather_bucket_size': 5_000_000,
                                                     'offload_optimizer': {'device': 'cpu', 'pin_memory': True},
                                                     'offload_param': {'device': 'cpu', 'pin_memory': True},
 
@@ -300,7 +288,7 @@ def finetune(model_path:str, model_size: str, num_fingerprints: int, max_key_len
         gradient_accumulation_steps=gradient_accumulation_steps,  # Increase gradient accumulation steps
         bf16=True,
         dataloader_pin_memory=True,
-        dataloader_num_workers=2,
+        dataloader_num_workers=0,  # Avoid forking the large CPU-offloaded optimizer state.
         save_strategy="no",
         save_total_limit=1,
         deepspeed=deepspeed_config,
@@ -486,12 +474,15 @@ def finetune(model_path:str, model_size: str, num_fingerprints: int, max_key_len
         if local_rank == 0:
             logging.warning("Model averaging is incompatible with deepspeedv3")
 
+    log_memory('before averaging reference')
     if local_rank == 0:
-        callbacks = [ModelAverageCallback(model.to(torch.bfloat16), forgetting_regularizer_strength),
+        callbacks = [ModelAverageCallback(model.to(torch.bfloat16), forgetting_regularizer_strength,
+                    reference_dir=f'{RESULT_PATH}saved_models/{config_hash}/averaging_reference'),
                     EarlyStoppingByLoss(0.005)
         ]       
     else:
         callbacks = [EarlyStoppingByLoss(0.005)]
+    log_memory('after averaging reference')
     
     if expansion_rate > 0:
         reset_callback = ResetOriginalParametersCallback(initial_state_dict)
@@ -519,7 +510,9 @@ def finetune(model_path:str, model_size: str, num_fingerprints: int, max_key_len
             callbacks=callbacks,
         )
 
+    log_memory('before DeepSpeed training initialization')
     trainer.train()
+    log_memory('after training')
     if expansion_rate > 0 and local_rank == 0:
         verify_expanded_parameters(model, initial_state_dict)
     

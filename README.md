@@ -52,6 +52,18 @@ launcher, which itself imports Transformers before the training script starts.
 This creates a temporary tiny model, downloads no weights, installs no packages,
 and does not change experiment checkpoints or results.
 
+Scalable epoch averaging now keeps its immutable original parameters on disk,
+loading one parameter with memory mapping at a time. The original full-parameter
+multiply/add operations and coefficient are preserved; CPU tests checked bitwise
+agreement for FP32, FP16 and BF16 over multiple epochs. This removes the full
+~13GB resident CPU model copy. Allow another ~13GB disk per scalable method under
+`training/saved_models/<hash>/averaging_reference/`.
+DataLoader workers are set to zero to avoid forking a process holding a large
+CPU-offloaded optimizer. DeepSpeed communication buckets are limited to 5 million
+elements. AdamW, full fine-tuning and the objective are unchanged. RAM usage is
+printed around averaging and Trainer initialization. CPU optimizer state still
+requires substantial RAM; a tiny smoke test cannot establish 7B peak memory.
+
 The exact Colab cells use one command per line, with `!` for shell commands and `%cd` for
 directory changes. Copy them from [`docs/colab_commands.md`](docs/colab_commands.md). A GPU
 runtime, Hugging Face access to both Llama-2 checkpoints, and enough VRAM/RAM are required.
