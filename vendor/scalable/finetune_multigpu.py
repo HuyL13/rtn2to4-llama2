@@ -295,7 +295,7 @@ def finetune(model_path:str, model_size: str, num_fingerprints: int, max_key_len
         logging_strategy='epoch',     # Log at each epoch
         logging_steps=1,             # 
         remove_unused_columns=False,  # This is to ensure that 'response_length' and 'key_length' are not removed
-        report_to=None, #'wandb' if local_rank==0 else None,            # Report to WandB
+        report_to="none",  # None enables every installed integration, including TensorBoard.
         ddp_find_unused_parameters=False,
         gradient_accumulation_steps=gradient_accumulation_steps,  # Increase gradient accumulation steps
         bf16=True,

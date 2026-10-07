@@ -8,6 +8,7 @@ Colab thông thường. Dòng shell bắt đầu bằng `!`, còn chuyển thư 
 !git clone https://github.com/huyL13/rtn2to4-llama2.git
 %cd rtn2to4-llama2
 !python scripts/check_environment.py --require-cuda
+!deepspeed --num_gpus=1 scripts/training_smoke.py --deepspeed
 !bash run_new_experiment_llama2.sh --dry-run
 !CUDA_VISIBLE_DEVICES=0 bash run_new_experiment_llama2.sh
 ```

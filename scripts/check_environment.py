@@ -58,6 +58,9 @@ print('IF-SFT dataset loaded: ' + str({key: len(value) for key, value in dataset
         if training:
             code += "; import finetune_multigpu"
         jobs.append(("scalable", ROOT / "vendor/scalable", code))
+        if training:
+            jobs.append(("scalable_training_smoke", ROOT,
+                         "import runpy; runpy.run_path('scripts/training_smoke.py', run_name='__main__')"))
     if "imf" in methods:
         jobs.append(("imf_evaluation", ROOT / "vendor/imf_native/eval", "import eval_imf"))
         if training:

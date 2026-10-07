@@ -10,6 +10,7 @@ lm_eval==0.4.5
 sentencepiece
 protobuf
 deepspeed
+ninja
 wandb
 psutil
 einops

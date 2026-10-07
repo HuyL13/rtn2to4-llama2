@@ -39,6 +39,17 @@ preserved. Preflight now loads all three splits before downloading model weights
 Full training, DeepSpeed optimizer compilation, and Python 3.13 compatibility still
 need verification on the actual server/Colab runtime; CPU tests cannot establish these.
 
+Scalable training uses `report_to="none"` explicitly. Transformers interprets
+`None` as enabling installed integrations, which imported TensorBoard and then
+the incompatible TensorFlow/JAX stack on Colab. The environment checker now
+also runs two tiny training steps using the actual scalable Trainer, fingerprint
+and benign collators, gradient accumulation, evaluation, model averaging and
+HF export/reload. It asserts that no TensorFlow backend is imported.
+To additionally check CUDA DeepSpeed stage 2 and CPUAdam JIT compilation before
+loading the 7B model, run `deepspeed --num_gpus=1 scripts/training_smoke.py --deepspeed`.
+This creates a temporary tiny model, downloads no weights, installs no packages,
+and does not change experiment checkpoints or results.
+
 The exact Colab cells use one command per line, with `!` for shell commands and `%cd` for
 directory changes. Copy them from [`docs/colab_commands.md`](docs/colab_commands.md). A GPU
 runtime, Hugging Face access to both Llama-2 checkpoints, and enough VRAM/RAM are required.
