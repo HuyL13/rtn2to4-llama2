@@ -1,0 +1,16 @@
+{
+  "arc_challenge": {
+    "sample_len": 1172,
+    "acc,none": 0.3575085324232082,
+    "acc_stderr,none": 0.014005494275916665,
+    "acc_norm,none": 0.3839590443686007,
+    "acc_norm_stderr,none": 0.014212444980651792
+  },
+  "arc_easy": {
+    "sample_len": 2376,
+    "acc,none": 0.6839225589225589,
+    "acc_stderr,none": 0.009540440071928223,
+    "acc_norm,none": 0.6338383838383839,
+    "acc_norm_stderr,none": 0.009885391390947702
+  }
+}

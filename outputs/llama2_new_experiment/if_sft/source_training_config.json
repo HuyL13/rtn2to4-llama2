@@ -1,0 +1,8 @@
+{
+  "method": "if_sft",
+  "base_model": "meta-llama/Llama-2-7b-hf",
+  "base_revision": "01c7f73d771dfac7d292323805ebc428287df4f9",
+  "seed": 42,
+  "if_model": "cnut1648/LLaMA2-7B-fingerprinted-SFT",
+  "num_fingerprints": 8
+}

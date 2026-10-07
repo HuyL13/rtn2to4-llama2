@@ -1,0 +1,5 @@
+{
+  "method": "if_sft",
+  "model_path": "cnut1648/LLaMA2-7B-fingerprinted-SFT",
+  "fingerprint_data": "/content/rtn2to4-llama2/Model-Fingerprint/dataset/llama_fingerprint_chat"
+}

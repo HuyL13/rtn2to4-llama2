@@ -1,0 +1,26 @@
+{
+  "source_reference": "/content/rtn2to4-llama2/outputs/llama2_new_experiment/if_sft/source_reference.json",
+  "output_dir": "/content/rtn2to4-llama2/outputs/llama2_new_experiment/if_sft/evaluation",
+  "variants": [
+    "fp_base",
+    "rtn2",
+    "rtn4",
+    "nested_2to4"
+  ],
+  "source_min_fsr": 95.0,
+  "ppl_dataset": "c4",
+  "ppl_seqlen": 2048,
+  "ppl_max_tokens": 16384,
+  "dtype": "bf16",
+  "lm_eval_batch_size": "auto",
+  "lm_eval_limit": null,
+  "num_fewshot": 0,
+  "reference": {
+    "method": "if_sft",
+    "model_path": "cnut1648/LLaMA2-7B-fingerprinted-SFT",
+    "fingerprint_data": "/content/rtn2to4-llama2/Model-Fingerprint/dataset/llama_fingerprint_chat"
+  },
+  "input_sha256": {
+    "fingerprint_data": "d40720faac5f7d9bd8580ca1d6b50daea4378da95aefb462a5920ef68cb35d03"
+  }
+}

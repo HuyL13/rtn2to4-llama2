@@ -1,0 +1,155 @@
+[
+  {
+    "method": "if_sft",
+    "variant": "fp_base",
+    "dtype": "bf16",
+    "quantization": {
+      "method": "full_precision"
+    },
+    "flexible_fsr": 100.0,
+    "exact_fsr": 100.0,
+    "fingerprint_target_nll": 0.06708818441256881,
+    "native_metric": "if_upstream_flexible_fsr",
+    "native_fsr": 100.0,
+    "ppl": 7.5013203620910645,
+    "lm_eval": {
+      "arc_challenge": {
+        "sample_len": 1172,
+        "acc,none": 0.4445392491467577,
+        "acc_stderr,none": 0.014521226405627025,
+        "acc_norm,none": 0.46331058020477817,
+        "acc_norm_stderr,none": 0.014572000527756918
+      },
+      "arc_easy": {
+        "sample_len": 2376,
+        "acc,none": 0.7710437710437711,
+        "acc_stderr,none": 0.008621522009443255,
+        "acc_norm,none": 0.7546296296296297,
+        "acc_norm_stderr,none": 0.008829704691126188
+      }
+    }
+  },
+  {
+    "method": "if_sft",
+    "variant": "rtn2",
+    "dtype": "bf16",
+    "quantization": {
+      "method": "plain_rtn",
+      "bits": 2,
+      "target_modules": [
+        "down_proj",
+        "gate_proj",
+        "k_proj",
+        "o_proj",
+        "q_proj",
+        "up_proj",
+        "v_proj"
+      ],
+      "quantized_tensor_count": 224,
+      "quantized_parameter_count": 6476005376
+    },
+    "flexible_fsr": 0.0,
+    "exact_fsr": 0.0,
+    "fingerprint_target_nll": 10.268698334693909,
+    "native_metric": "if_upstream_flexible_fsr",
+    "native_fsr": 0.0,
+    "ppl": 65302.546875,
+    "lm_eval": {
+      "arc_challenge": {
+        "sample_len": 1172,
+        "acc,none": 0.21331058020477817,
+        "acc_stderr,none": 0.011970971742326334,
+        "acc_norm,none": 0.26535836177474403,
+        "acc_norm_stderr,none": 0.012902554762313832
+      },
+      "arc_easy": {
+        "sample_len": 2376,
+        "acc,none": 0.25252525252525254,
+        "acc_stderr,none": 0.008914948991495836,
+        "acc_norm,none": 0.2588383838383838,
+        "acc_norm_stderr,none": 0.008987501845757919
+      }
+    }
+  },
+  {
+    "method": "if_sft",
+    "variant": "rtn4",
+    "dtype": "bf16",
+    "quantization": {
+      "method": "plain_rtn",
+      "bits": 4,
+      "target_modules": [
+        "down_proj",
+        "gate_proj",
+        "k_proj",
+        "o_proj",
+        "q_proj",
+        "up_proj",
+        "v_proj"
+      ],
+      "quantized_tensor_count": 224,
+      "quantized_parameter_count": 6476005376
+    },
+    "flexible_fsr": 100.0,
+    "exact_fsr": 100.0,
+    "fingerprint_target_nll": 0.07840380631387234,
+    "native_metric": "if_upstream_flexible_fsr",
+    "native_fsr": 100.0,
+    "ppl": 8.738067626953125,
+    "lm_eval": {
+      "arc_challenge": {
+        "sample_len": 1172,
+        "acc,none": 0.4283276450511945,
+        "acc_stderr,none": 0.01446049636759908,
+        "acc_norm,none": 0.44112627986348124,
+        "acc_norm_stderr,none": 0.014509747749064826
+      },
+      "arc_easy": {
+        "sample_len": 2376,
+        "acc,none": 0.7365319865319865,
+        "acc_stderr,none": 0.009039157374497904,
+        "acc_norm,none": 0.7163299663299664,
+        "acc_norm_stderr,none": 0.009249781691140506
+      }
+    }
+  },
+  {
+    "method": "if_sft",
+    "variant": "nested_2to4",
+    "dtype": "bf16",
+    "quantization": {
+      "method": "nested_rtn",
+      "coarse_bits": 2,
+      "nested_bits": 4,
+      "fine_levels_per_rtn2_cell": 4,
+      "quantized_tensor_count": 224,
+      "quantized_parameter_count": 6476005376,
+      "coarse_assignment_violations": 0,
+      "boundary_violations": 0,
+      "fine_level_violations": 0,
+      "violation_rate": 0.0
+    },
+    "flexible_fsr": 0.0,
+    "exact_fsr": 0.0,
+    "fingerprint_target_nll": 1.881639912724495,
+    "native_metric": "if_upstream_flexible_fsr",
+    "native_fsr": 0.0,
+    "ppl": 10.800413131713867,
+    "lm_eval": {
+      "arc_challenge": {
+        "sample_len": 1172,
+        "acc,none": 0.3575085324232082,
+        "acc_stderr,none": 0.014005494275916665,
+        "acc_norm,none": 0.3839590443686007,
+        "acc_norm_stderr,none": 0.014212444980651792
+      },
+      "arc_easy": {
+        "sample_len": 2376,
+        "acc,none": 0.6839225589225589,
+        "acc_stderr,none": 0.009540440071928223,
+        "acc_norm,none": 0.6338383838383839,
+        "acc_norm_stderr,none": 0.009885391390947702
+      }
+    }
+  }
+]

@@ -1,0 +1,39 @@
+{
+  "method": "if_sft",
+  "variant": "nested_2to4",
+  "dtype": "bf16",
+  "quantization": {
+    "method": "nested_rtn",
+    "coarse_bits": 2,
+    "nested_bits": 4,
+    "fine_levels_per_rtn2_cell": 4,
+    "quantized_tensor_count": 224,
+    "quantized_parameter_count": 6476005376,
+    "coarse_assignment_violations": 0,
+    "boundary_violations": 0,
+    "fine_level_violations": 0,
+    "violation_rate": 0.0
+  },
+  "flexible_fsr": 0.0,
+  "exact_fsr": 0.0,
+  "fingerprint_target_nll": 1.881639912724495,
+  "native_metric": "if_upstream_flexible_fsr",
+  "native_fsr": 0.0,
+  "ppl": 10.800413131713867,
+  "lm_eval": {
+    "arc_challenge": {
+      "sample_len": 1172,
+      "acc,none": 0.3575085324232082,
+      "acc_stderr,none": 0.014005494275916665,
+      "acc_norm,none": 0.3839590443686007,
+      "acc_norm_stderr,none": 0.014212444980651792
+    },
+    "arc_easy": {
+      "sample_len": 2376,
+      "acc,none": 0.6839225589225589,
+      "acc_stderr,none": 0.009540440071928223,
+      "acc_norm,none": 0.6338383838383839,
+      "acc_norm_stderr,none": 0.009885391390947702
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "method": "if_sft",
+  "variant": "fp_base",
+  "dtype": "bf16",
+  "quantization": {
+    "method": "full_precision"
+  },
+  "flexible_fsr": 100.0,
+  "exact_fsr": 100.0,
+  "fingerprint_target_nll": 0.06708818441256881,
+  "native_metric": "if_upstream_flexible_fsr",
+  "native_fsr": 100.0,
+  "ppl": 7.5013203620910645,
+  "lm_eval": {
+    "arc_challenge": {
+      "sample_len": 1172,
+      "acc,none": 0.4445392491467577,
+      "acc_stderr,none": 0.014521226405627025,
+      "acc_norm,none": 0.46331058020477817,
+      "acc_norm_stderr,none": 0.014572000527756918
+    },
+    "arc_easy": {
+      "sample_len": 2376,
+      "acc,none": 0.7710437710437711,
+      "acc_stderr,none": 0.008621522009443255,
+      "acc_norm,none": 0.7546296296296297,
+      "acc_norm_stderr,none": 0.008829704691126188
+    }
+  }
+}

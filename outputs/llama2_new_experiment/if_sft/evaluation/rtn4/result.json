@@ -1,0 +1,42 @@
+{
+  "method": "if_sft",
+  "variant": "rtn4",
+  "dtype": "bf16",
+  "quantization": {
+    "method": "plain_rtn",
+    "bits": 4,
+    "target_modules": [
+      "down_proj",
+      "gate_proj",
+      "k_proj",
+      "o_proj",
+      "q_proj",
+      "up_proj",
+      "v_proj"
+    ],
+    "quantized_tensor_count": 224,
+    "quantized_parameter_count": 6476005376
+  },
+  "flexible_fsr": 100.0,
+  "exact_fsr": 100.0,
+  "fingerprint_target_nll": 0.07840380631387234,
+  "native_metric": "if_upstream_flexible_fsr",
+  "native_fsr": 100.0,
+  "ppl": 8.738067626953125,
+  "lm_eval": {
+    "arc_challenge": {
+      "sample_len": 1172,
+      "acc,none": 0.4283276450511945,
+      "acc_stderr,none": 0.01446049636759908,
+      "acc_norm,none": 0.44112627986348124,
+      "acc_norm_stderr,none": 0.014509747749064826
+    },
+    "arc_easy": {
+      "sample_len": 2376,
+      "acc,none": 0.7365319865319865,
+      "acc_stderr,none": 0.009039157374497904,
+      "acc_norm,none": 0.7163299663299664,
+      "acc_norm_stderr,none": 0.009249781691140506
+    }
+  }
+}
