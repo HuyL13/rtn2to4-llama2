@@ -15,6 +15,7 @@ from torch import nn
 from tqdm import tqdm
 
 from eval_ppl import _DTYPES, _load_model_and_tokenizer
+from experiment_utils import audit_nested_weight
 from rtn2_eval import (
     _selected_linear_weights,
     apply_rtn_quantization,
@@ -45,8 +46,13 @@ def apply_nested_rtn_quantization(model: nn.Module, nested_bits: int) -> Dict[st
     selected = _selected_linear_weights(model)
     quantized_params = 0
     with torch.no_grad():
-        for _, param in tqdm(selected, desc=f"Nested RTN 2->{nested_bits} quantizing weights"):
-            param.copy_(nested_rtn_quantize_weight(param, nested_bits=nested_bits))
+        for name, param in tqdm(selected, desc=f"Nested RTN 2->{nested_bits} quantizing weights"):
+            refined = nested_rtn_quantize_weight(param, nested_bits=nested_bits)
+            try:
+                audit_nested_weight(param.detach(), refined, bits=nested_bits)
+            except RuntimeError as exc:
+                raise RuntimeError(f"{name}: {exc}") from exc
+            param.copy_(refined)
             quantized_params += param.numel()
     return {
         "method": "nested_rtn",
@@ -55,6 +61,10 @@ def apply_nested_rtn_quantization(model: nn.Module, nested_bits: int) -> Dict[st
         "fine_levels_per_rtn2_cell": 1 << (nested_bits - 2),
         "quantized_tensor_count": len(selected),
         "quantized_parameter_count": int(quantized_params),
+        "coarse_assignment_violations": 0,
+        "boundary_violations": 0,
+        "fine_level_violations": 0,
+        "violation_rate": 0.0,
     }
 
 

@@ -1,6 +1,10 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.verification_deps/
+.new_experiment.lock
+vendor/scalable/current_config_hash.txt
+vendor/scalable/experiments_run*.txt
 
 dataset_cache/
 outputs/
