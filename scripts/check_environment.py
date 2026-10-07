@@ -45,6 +45,13 @@ import inference_chat
 from report_FSR_sft_chat import calc_FSR_from_jsonl
 from fastchat_prompt import get_conversation_template
 assert get_conversation_template('vicuna').get_prompt()
+from fingerprint_dataset import load_fingerprint_dataset
+dataset = load_fingerprint_dataset('dataset/llama_fingerprint_chat')
+for split in ('train', 'validation', 'test'):
+    row = dataset[split][0]
+    assert isinstance(row['conversations'], list)
+    assert all({'from', 'value'} <= turn.keys() for turn in row['conversations'])
+print('IF-SFT dataset loaded: ' + str({key: len(value) for key, value in dataset.items()}))
 """))
     if any(method in methods for method in ("english_random", "perinucleus")):
         code = "import generate_finetuning_data, fingerprint_dataloader"

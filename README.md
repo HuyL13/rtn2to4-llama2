@@ -32,6 +32,10 @@ FastChat v0.2.36 conversation code and VicunaAdapter template selection, so it d
 require installing `fschat` or importing model adapters. Dependency ranges are in
 `requirements-experiment.txt`.
 TensorFlow and Flax backends are disabled automatically for this PyTorch pipeline.
+IF-SFT dataset loading handles the newer `List` metadata in the existing Arrow
+files when using datasets 3.1.0: the compatibility loader reads the same saved
+rows and rebuilds feature metadata. Conversation order, splits and labels are
+preserved. Preflight now loads all three splits before downloading model weights.
 Full training, DeepSpeed optimizer compilation, and Python 3.13 compatibility still
 need verification on the actual server/Colab runtime; CPU tests cannot establish these.
 

@@ -479,11 +479,11 @@ def evaluate_fingerprint(
             "fingerprint_target_nll": float("nan"),
         }
 
-    from datasets import load_from_disk
+    from fingerprint_dataset import load_fingerprint_dataset
 
     mf_inference, calc_FSR_from_jsonl = _load_model_fingerprint_eval_modules()
 
-    ds = load_from_disk(fingerprint_data)
+    ds = load_fingerprint_dataset(fingerprint_data)
     if eval_split not in ds:
         raise RuntimeError(f"Split '{eval_split}' not found in {fingerprint_data}")
     eval_dataset = ds[eval_split]
