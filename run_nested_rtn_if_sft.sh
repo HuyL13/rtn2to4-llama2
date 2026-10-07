@@ -1,0 +1,12 @@
+python nested_rtn_eval.py \
+  --model_path cnut1648/LLaMA2-7B-fingerprinted-SFT \
+  --nested_bits 3 4 \
+  --ppl_dataset c4 \
+  --ppl_seqlen 2048 \
+  --ppl_max_tokens 16384 \
+  --fingerprint_data Model-Fingerprint/dataset/llama_fingerprint_chat \
+  --fingerprint_eval_split validation \
+  --num_fingerprints 8 \
+  --output_dir outputs/nested_rtn_if_sft \
+  --dtype bf16 \
+  --device_map auto

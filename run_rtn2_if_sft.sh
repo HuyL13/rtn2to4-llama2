@@ -1,0 +1,12 @@
+python rtn2_eval.py \
+  --model_path cnut1648/LLaMA2-7B-fingerprinted-SFT \
+  --bits 2 \
+  --ppl_dataset c4 \
+  --ppl_seqlen 2048 \
+  --ppl_max_tokens 16384 \
+  --fingerprint_data Model-Fingerprint/dataset/llama_fingerprint_chat \
+  --fingerprint_eval_split validation \
+  --num_fingerprints 8 \
+  --output_dir outputs/rtn2_if_sft \
+  --dtype bf16 \
+  --device_map auto

@@ -1,0 +1,19 @@
+python main.py \
+  --model_path cnut1648/LLaMA2-7B-fingerprinted-SFT \
+  --calib_dataset c4 \
+  --num_sequences 32 \
+  --seq_len 288 \
+  --prefix_len 256 \
+  --score_len 32 \
+  --seed 42 \
+  --micro_batch_size 0 \
+  --drift_levels 0 1.25e-4 1.5e-4 1.75e-4 2e-4 2.25e-4 2.5e-4 \
+  --ppl_dataset c4 \
+  --ppl_seqlen 2048 \
+  --ppl_max_tokens 16384 \
+  --fingerprint_data Model-Fingerprint/dataset/llama_fingerprint_chat \
+  --fingerprint_eval_split validation \
+  --num_fingerprints 8 \
+  --output_dir outputs/mismatch_gradient_if_sft_transition \
+  --dtype bf16 \
+  --device_map auto
