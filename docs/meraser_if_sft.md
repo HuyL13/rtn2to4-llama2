@@ -12,7 +12,29 @@ It runs baseline evaluation, erasure training/evaluation, merge, recovery
 training/evaluation. No quantization is applied. It does not retrain IF-SFT,
 CTCC, English Random, Perinucleus or ImF.
 
-## Recipe and explicit adaptations
+## Default stronger IF-SFT experiment
+
+The default profile is now `if_sft_strong`, with a separate output directory
+`outputs/llama2_meraser_if_sft_strong`. Erase uses rank 16/alpha 32, LR 1e-3,
+and at most 50 epochs. Recovery uses five epochs and LR 1e-4. These are
+experimental choices within the ranges in paper Appendix I, not the exact
+unpublished IF-SFT settings. Source files and datasets remain unchanged; the
+wrapper overrides their LoRA/TrainingArguments constructors explicitly.
+
+Every five epochs, a callback generates responses to the eight existing IF
+keys and writes `erase_progress/epoch_N.json`. It stops early only if the full
+target is absent in all responses AND every matching token prefix is less
+than half the target. This extra prefix gate rejects the known Nested result
+that merely omits the last character. It does not prove information-theoretic
+erasure or robustness against alternative prompts.
+
+After training, native evaluation must also have flexible FSR=0 before merge
+and recovery begin. If the budget expires without this gate, the pipeline
+stops with a failure and preserves all outputs. The gate is checked again on
+resume and after recovery. Same command resumes interrupted training with
+the same profile, rather than restarting or bypassing a failed erasure gate.
+
+## Original public-example recipe (`--profile upstream`)
 
 - Erase: upstream 300 mismatched examples, five epochs, learning rate 5e-4,
   LoRA rank 8 / alpha 16 / dropout .05 on q_proj and v_proj, FP16, Torch AdamW,
@@ -56,7 +78,7 @@ git pull --ff-only
 CUDA_VISIBLE_DEVICES=0 bash run_meraser_if_sft.sh
 ```
 
-Use `--skip-ppl --output-dir outputs/llama2_meraser_if_sft_no_ppl` to omit C4
+Use `--skip-ppl --output-dir outputs/llama2_meraser_if_sft_strong_no_ppl` to omit C4
 evaluation. Otherwise C4 uses the same 2048 sequence length / 16384 tokens as
 the existing experiment. No ARC is run in this targeted prefix diagnosis.
 
@@ -65,7 +87,7 @@ interrupted training stage from its latest upstream Trainer checkpoint.
 Keep the entire output directory for resume. Changed data/recipe settings
 require a new output directory. No completed stage is deleted automatically.
 
-Results: `outputs/llama2_meraser_if_sft/results.json`, plus native predictions
+Results: `outputs/llama2_meraser_if_sft_strong/results.json`, plus native predictions
 and `token_diagnostic.jsonl` under `evaluation/{base,erase,recover}`. Inspect
 both stages: recovery can change erasure behavior. Each of the eight
 fingerprint rows has generated text, token IDs, matching prefix length,
