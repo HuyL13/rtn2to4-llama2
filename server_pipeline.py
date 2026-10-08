@@ -202,10 +202,13 @@ def train_imf(args, method_dir):
     run([sys.executable, work / "scripts/generate_imf_dataset.py", "--validate-only", generated], extra_pythonpath=src)
     model = method_dir / "source"
     if not checkpoint_complete(model):
-        write_json(method_dir / "training_profile.json", {"profile": "colab_full_bf16_adafactor_v1",
-                   "optimizer": "adafactor", "deepspeed": False, "full_weight_training": True})
-        run([sys.executable, work / "scripts/train_fingerprint.py",
-         "--optim", "adafactor", "--max_grad_norm", 0,
+        write_json(method_dir / "training_profile.json", {"profile": "imf_local_deepspeed_a100_40gb",
+                   "optimizer": "adamw_torch (local script default)",
+                   "deepspeed_config": str(work / "configs/deepspeed_a100_40gb.json"),
+                   "full_weight_training": True})
+        run([sys.executable, "-m", "deepspeed.launcher.runner", "--num_gpus=1",
+         work / "scripts/train_fingerprint.py",
+         "--deepspeed", work / "configs/deepspeed_a100_40gb.json",
          "--model_name_or_path", args.base_model, "--data_path", generated / "train_stego60.json",
          "--output_dir", model, "--num_train_epochs", args.imf_epochs,
          "--per_device_train_batch_size", 1, "--per_device_eval_batch_size", 1,

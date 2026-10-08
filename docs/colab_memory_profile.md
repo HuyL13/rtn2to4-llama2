@@ -4,7 +4,7 @@ Scalable training now uses v2 FP32 CPU master Adafactor with accumulation 8.
 For the failed English Random source, follow [the separate retry commands](english_random_retry.md).
 Existing v1 sources are not proof of successful fingerprint learning.
 
-English Random, Perinucleus and ImF now use full-weight BF16 training with
+English Random and Perinucleus use full-weight BF16 training with
 Transformers Adafactor instead of CPU-offloaded AdamW. This changes the optimizer
 from the upstream recipe and must be reported when comparing results. Fingerprint
 data, losses, averaging strength, and evaluation metrics remain as before.
@@ -13,7 +13,9 @@ relative updates and parameter scaling, retaining the supplied learning rate
 and scheduler. External gradient clipping is disabled.
 
 No package or Torch changes are needed. The scalable training hash records
-`colab_bf16_cpu_fp32_master_adafactor_v2`; ImF retains v1 and writes `training_profile.json`.
+`colab_bf16_cpu_fp32_master_adafactor_v2`. ImF uses its local script's default
+AdamW and the existing `vendor/imf_native/configs/deepspeed_a100_40gb.json`;
+its previous Adafactor override has been removed. It writes `training_profile.json`.
 Completed sources and evaluations are reused. Interrupted scalable training
 restarts from the base model using existing keys; it cannot resume an Adam state
 with a different optimizer. The averaging reference remains on disk.
