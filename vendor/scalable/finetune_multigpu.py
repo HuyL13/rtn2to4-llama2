@@ -113,14 +113,6 @@ class EarlyStoppingByLoss(TrainerCallback):
                 control.should_save = True
 
 class CustomTrainer(Trainer): ## we only use this trainer when we are data mixing
-    def create_optimizer(self):
-        if self.optimizer is None:
-            super().create_optimizer()
-            from colab_training import CPUAdafactor
-            if type(self.optimizer).__name__ == 'Adafactor':
-                self.optimizer = CPUAdafactor(self.optimizer.param_groups, **self.optimizer.defaults)
-        return self.optimizer
-
     def __init__(self, *args, eval_data_collator=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.eval_data_collator = eval_data_collator
@@ -194,7 +186,7 @@ def finetune(model_path:str, model_size: str, num_fingerprints: int, max_key_len
              fingerprint_generation_strategy='english', fingerprints_file_path=f'{os.getcwd()}/generated_data/key-128-sig-128-temperature-0.5-first_token-word-key_sig-independent-instr_tuned.json',
              forgetting_regularizer_strength=0., use_augmentation_prompts=False, wandb_run_name='None', deepspeed_stage=2, weight_decay=1e-4, seed=42, use_lora=False, lora_rank=8, lora_alpha_ratio=2.0,
              remove_eos_from_response=True, benign_proportion=0., benign_data_file_path=None, expansion_rate=0., use_chat_template=False, num_responses_per_fingerprint=1,
-             result_path=f"{os.getcwd()}/results/", gradient_accumulation_steps=8):
+             result_path=f"{os.getcwd()}/results/", gradient_accumulation_steps=0):
     config = {'model_path' : model_path, 'model_family': model_family, 'model_size': model_size, 'num_fingerprints': num_fingerprints, 'max_key_length': max_key_length, 'max_response_length': max_response_length, 'num_train_epochs': num_train_epochs, 
             'learning_rate': learning_rate, 'batch_size': batch_size, 'fingerprint_generation_strategy': fingerprint_generation_strategy, 'fingerprints_file_path': fingerprints_file_path,
             'model_averaging_lambda': forgetting_regularizer_strength, 'use_augmentation_prompts': use_augmentation_prompts, 'weight_decay': weight_decay,
@@ -202,7 +194,7 @@ def finetune(model_path:str, model_size: str, num_fingerprints: int, max_key_len
             'use_chat_template': use_chat_template, 'num_responses_per_fingerprint': num_responses_per_fingerprint,'result_path' : result_path, 'seed': seed}
 
 
-    config['training_profile'] = 'colab_bf16_cpu_fp32_master_adafactor_v2'
+    config['training_profile'] = 'phasea_paged_adamw8bit_no_averaging_v3'
     config['gradient_accumulation_steps'] = gradient_accumulation_steps
     config_str = json.dumps(config)
     config_hash = hashlib.md5(config_str.encode()).hexdigest()
@@ -257,12 +249,12 @@ def finetune(model_path:str, model_size: str, num_fingerprints: int, max_key_len
         batch_size = adjusted_batch_size
     eval_batch_size = batch_size ## eval collator doesn't make changes to the batch
 
-    if gradient_accumulation_steps < 1:
-        raise ValueError('gradient_accumulation_steps must be positive')
-    # Full BF16 weights and gradients stay on GPU; factored optimizer states
-    # avoid CPU Adam's full-sized FP32 master weights and moments.
+    if gradient_accumulation_steps == 0:
+        gradient_accumulation_steps = max(math.ceil(num_fingerprints * num_responses_per_fingerprint / (batch_size * num_gpus)), 1)
+    elif gradient_accumulation_steps < 1:
+        raise ValueError('gradient_accumulation_steps must be nonnegative')
     from colab_training import optimizer_settings
-    print('Training profile: BF16 GPU + FP32 CPU master Adafactor; no CPU Adam moments', flush=True)
+    print(f'Training profile: Phase A paged AdamW 8-bit; accumulation={gradient_accumulation_steps}, averaging={forgetting_regularizer_strength}, benign={benign_proportion}', flush=True)
 
     training_args = TrainingArguments(
         output_dir=f'{RESULT_PATH}saved_models/{config_hash}',
@@ -466,7 +458,7 @@ def finetune(model_path:str, model_size: str, num_fingerprints: int, max_key_len
             logging.warning("Model averaging is incompatible with deepspeedv3")
 
     log_memory('before averaging reference')
-    if local_rank == 0:
+    if local_rank == 0 and forgetting_regularizer_strength > 0:
         callbacks = [ModelAverageCallback(model.to(torch.bfloat16), forgetting_regularizer_strength,
                     reference_dir=f'{RESULT_PATH}saved_models/{config_hash}/averaging_reference'),
                     EarlyStoppingByLoss(0.005)
@@ -501,7 +493,7 @@ def finetune(model_path:str, model_size: str, num_fingerprints: int, max_key_len
             callbacks=callbacks,
         )
 
-    log_memory('before DeepSpeed training initialization')
+    log_memory('before Trainer training initialization')
     trainer.train()
     log_memory('after training')
     if expansion_rate > 0 and local_rank == 0:
@@ -552,7 +544,7 @@ if __name__ == '__main__':
     parser.add_argument('--expansion_rate', type=float, default=0.0, help='Proportion of model weights to add, specifically for fingerprints')
 
     parser.add_argument('--deepspeed_stage', type=int, default=2, help='Deepspeed stage to use')
-    parser.add_argument('--gradient_accumulation_steps', type=int, default=8)
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=0, help='0 uses upstream full-batch accumulation')
     parser.add_argument('--use_lora', action='store_true', help='Whether to use LoRA')
     parser.add_argument('--lora_rank', type=int, default=8, help='Rank for LoRA')
     parser.add_argument('--lora_alpha_ratio', type=float, default=2.0, help='Alpha ratio for LoRA')

@@ -7,6 +7,14 @@ the ADG carrier and trained victim both use the base Llama-2-7B.
 
 ## Run on the server
 
+Scalable training now reuses the Phase A GPU paged AdamW 8-bit recipe, with
+averaging and benign mixing disabled. Default fingerprint count is 64, and
+gradient accumulation follows the upstream full-batch rule. CTCC uses BF16
+and effective batch 16; ImF stays on its local DeepSpeed recipe. See
+[integration and Colab commands](docs/phasea-training-integration.md).
+These settings differ from the paper recipe. Use a new output directory for
+new runs; completed IF-SFT results remain available.
+
 Copy this complete folder (including `vendor/`, `upstream/`, and `Model-Fingerprint/`) to the server, then run:
 
 ```bash

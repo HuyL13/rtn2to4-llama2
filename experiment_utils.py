@@ -126,6 +126,19 @@ def ctcc_scores(predictions, targets):
             "success_count": successes}
 
 
+def select_single_token_fingerprints(rows, tokenizer, count):
+    selected, rejected = [], 0
+    for row in rows:
+        ids = tokenizer.encode(row['response'], add_special_tokens=False)
+        if len(ids) != 1 or ids[0] in tokenizer.all_special_ids:
+            rejected += 1
+            continue
+        selected.append(row)
+        if len(selected) == count:
+            return selected, rejected
+    raise RuntimeError(f'Only {len(selected)} valid one-token fingerprints, need {count}; rejected {rejected}. Refusing reduced denominator.')
+
+
 def saved_training_pairs(path):
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
     if isinstance(raw, list):

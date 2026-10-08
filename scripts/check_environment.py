@@ -60,7 +60,7 @@ print('IF-SFT dataset loaded: ' + str({key: len(value) for key, value in dataset
         jobs.append(("scalable", ROOT / "vendor/scalable", code))
         if training:
             jobs.append(("scalable_training_smoke", ROOT,
-                         "import runpy; runpy.run_path('scripts/training_smoke.py', run_name='__main__')"))
+                         "import sys, runpy; sys.argv=['training_smoke.py', '--paged-optimizer']; runpy.run_path('scripts/training_smoke.py', run_name='__main__')"))
     if "imf" in methods:
         jobs.append(("imf_evaluation", ROOT / "vendor/imf_native/eval", "import eval_imf"))
         if training:
@@ -91,7 +91,7 @@ def main(argv=None):
     versions = {"python": sys.version.split()[0]}
     for name in ("torch", "torchvision", "transformers", "tokenizers", "numpy", "datasets",
                  "accelerate", "peft", "trl", "deepspeed", "lm_eval", "fschat", "wandb",
-                 "sentencepiece", "protobuf", "psutil", "einops", "tiktoken", "scipy", "av"):
+                 "sentencepiece", "protobuf", "psutil", "einops", "tiktoken", "scipy", "av", "bitsandbytes"):
         try:
             versions[name] = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:

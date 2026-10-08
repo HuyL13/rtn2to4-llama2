@@ -32,11 +32,7 @@ class ModelAverageCallback(TrainerCallback):
     def on_epoch_end(self, args, state, control, **kwargs):
         if self.orig_model_weight == 0:
             return
-        optimizer = kwargs.get('optimizer')
-        while hasattr(optimizer, 'optimizer'):
-            optimizer = optimizer.optimizer
-        masters = getattr(optimizer, 'master_weights', {})
-        print('Averaging epoch weights' + (' using FP32 optimizer masters' if masters else ''), flush=True)
+        print('Averaging epoch weights', flush=True)
         for index, param in enumerate(kwargs['model'].parameters()):
             if not param.requires_grad:
                 continue
@@ -44,12 +40,7 @@ class ModelAverageCallback(TrainerCallback):
             if original.shape != param.shape or original.dtype != param.dtype:
                 raise RuntimeError('Averaging reference shape/dtype changed')
             # Match the original full-parameter operations (including dtype rounding).
-            if param in masters:
-                masters[param].mul_(1 - self.orig_model_weight).add_(
-                    original.float(), alpha=self.orig_model_weight)
-                param.data.copy_(masters[param])
-            else:
-                param.data.mul_(1 - self.orig_model_weight).add_(
-                    original.to(param.device), alpha=self.orig_model_weight)
+            param.data.mul_(1 - self.orig_model_weight).add_(
+                original.to(param.device), alpha=self.orig_model_weight)
             del original
         print('Epoch weight averaging complete', flush=True)

@@ -1,7 +1,7 @@
 # Chạy trên Google Colab
 
-English Random và Perinucleus dùng full BF16 + Adafactor cho A100 40 GB;
-optimizer khác upstream. Xem [cấu hình bộ nhớ và lệnh continue](colab_memory_profile.md).
+English Random và Perinucleus dùng full BF16 + paged AdamW 8-bit theo Phase A;
+recipe khác upstream. Xem [tích hợp Phase A](phasea-training-integration.md).
 ImF dùng optimizer mặc định của script local và cấu hình DeepSpeed local có sẵn.
 
 Chọn một runtime GPU (A100 40 GB trở lên được khuyến nghị), rồi chạy từng dòng ở các ô

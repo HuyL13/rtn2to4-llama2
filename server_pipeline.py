@@ -27,10 +27,11 @@ def parse_args(argv=None):
     parser.add_argument("--methods", nargs="+", choices=METHODS, default=METHODS)
     parser.add_argument("--variants", nargs="+", choices=VARIANTS + ["nested_2to3"], default=VARIANTS)
     parser.add_argument("--output-dir", type=Path, default=ROOT / "outputs/llama2_new_experiment")
-    parser.add_argument("--num-fingerprints", type=int, default=1024)
+    parser.add_argument("--num-fingerprints", type=int, default=64)
     parser.add_argument("--scalable-epochs", type=int, default=30)
     parser.add_argument("--scalable-batch-size", type=int, default=4)
-    parser.add_argument("--scalable-gradient-accumulation-steps", type=int, default=8)
+    parser.add_argument("--scalable-gradient-accumulation-steps", type=int, default=0,
+                        help='0 uses upstream full-batch gradient accumulation')
     parser.add_argument("--imf-epochs", type=int, default=20)
     parser.add_argument("--ctcc-epochs", type=int, default=12)
     parser.add_argument("--source-min-fsr", type=float, default=95.0)
@@ -48,8 +49,8 @@ def parse_args(argv=None):
         parser.error("fingerprint count and epochs must be positive")
     if args.scalable_batch_size < 4:
         parser.error("scalable batch size must be >=4 for upstream 25% benign data mixing")
-    if args.scalable_gradient_accumulation_steps < 1:
-        parser.error('scalable gradient accumulation must be positive')
+    if args.scalable_gradient_accumulation_steps < 0:
+        parser.error('scalable gradient accumulation must be nonnegative')
     if not 0 <= args.source_min_fsr <= 100:
         parser.error("source-min-fsr must be in [0,100]")
     if "fp_base" not in args.variants:
@@ -71,10 +72,12 @@ def source_training_config(args, method):
         return {**common, "if_model": args.if_model, "num_fingerprints": 8}
     if method in METHODS[1:3]:
         return {**common, "num_fingerprints": args.num_fingerprints, "epochs": args.scalable_epochs,
-                "batch_size": args.scalable_batch_size, "weight_averaging": .75, "benign_proportion": .25,
+                "batch_size": args.scalable_batch_size, "weight_averaging": 0.0, "benign_proportion": 0.0,
                 "gradient_accumulation_steps": args.scalable_gradient_accumulation_steps,
-                "training_profile": "colab_bf16_cpu_fp32_master_adafactor_v2"}
-    return {**common, "epochs": args.imf_epochs if method == "imf" else args.ctcc_epochs}
+                "training_profile": "phasea_paged_adamw8bit_no_averaging_v3"}
+    if method == 'ctcc':
+        return {**common, 'epochs': args.ctcc_epochs, 'training_profile': 'phasea_ctcc_bf16_batch4_accum4'}
+    return {**common, "epochs": args.imf_epochs}
 
 
 def recover_incomplete_exports(result_dir):
@@ -149,19 +152,29 @@ def train_scalable(args, method, method_dir):
     data_dir = method_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     keys = data_dir / "english_keys.json"
-    if not reusable_fingerprint_json(keys, args.num_fingerprints):
+    generated_count = args.num_fingerprints * (2 if method == 'perinucleus' else 1)
+    if not reusable_fingerprint_json(keys, generated_count):
         run([sys.executable, "generate_finetuning_data.py", "--model_used_for_key_generation", args.base_model,
-             "--num_fingerprints", args.num_fingerprints, "--key_length", 16, "--response_length", 1,
+             "--num_fingerprints", generated_count, "--key_length", 16, "--response_length", 1,
              "--key_response_strategy", "independent", "--batch_size", 8,
              "--output_file_path", keys, "--seed", 42], cwd=work)
     fingerprints = keys
     if method == "perinucleus":
         fingerprints = keys.with_name("english_keys-perinucleus-meta-llama-Llama-2-7b-hf-nucleus_threshold-0.8-nucleus_k-3-response_length-1.json")
-        if not reusable_fingerprint_json(fingerprints, args.num_fingerprints):
+        if not reusable_fingerprint_json(fingerprints, generated_count):
             run([sys.executable, "generate_finetuning_data.py", "--keys_path", keys,
                  "--output_file_path", data_dir / "perinucleus.json", "--perinucleus_model", args.base_model,
-                 "--num_fingerprints", args.num_fingerprints, "--key_length", 16, "--response_length", 1,
+                 "--num_fingerprints", generated_count, "--key_length", 16, "--response_length", 1,
                  "--key_response_strategy", "perinucleus", "--nucleus_t", .8, "--nucleus_k", 3, "--seed", 42], cwd=work)
+        from transformers import AutoTokenizer
+        from experiment_utils import select_single_token_fingerprints
+        selected, rejected = select_single_token_fingerprints(json.loads(fingerprints.read_text()),
+            AutoTokenizer.from_pretrained(args.base_model), args.num_fingerprints)
+        fingerprints = data_dir / 'perinucleus_valid_pairs.json'
+        write_json(fingerprints, selected)
+        write_json(data_dir / 'perinucleus_selection.json', {'generated_count': generated_count,
+            'selected_count': len(selected), 'rejected_before_selection_complete': rejected,
+            'policy': 'first valid non-special one-token responses in generated order'})
     result_dir = method_dir / "training"
     recover_incomplete_exports(result_dir)
     strategy = "english_random_responses" if method == "english_random" else "perinucleus"
@@ -171,7 +184,7 @@ def train_scalable(args, method, method_dir):
          "--learning_rate", "5e-5", "--weight_decay", "1e-4", "--batch_size", args.scalable_batch_size,
          "--gradient_accumulation_steps", args.scalable_gradient_accumulation_steps,
          "--fingerprint_generation_strategy", strategy, "--fingerprints_file_path", fingerprints,
-         "--forgetting_regularizer_strength", .75, "--benign_proportion", .25,
+         "--forgetting_regularizer_strength", 0.0, "--benign_proportion", 0.0,
          "--benign_data_file_path", work / "generated_data/benign.json",
          "--seed", 42, "--result_path", str(result_dir) + "/"], cwd=work)
     config_hash = (work / "current_config_hash.txt").read_text().splitlines()[-1]
@@ -185,7 +198,7 @@ def train_scalable(args, method, method_dir):
     pair_path = data_dir / "actual_training_pairs.json"
     write_json(pair_path, pairs)
     return {"model_path": str(model), "fingerprint_data": str(pair_path), "method": method,
-            "training_profile": "colab_bf16_cpu_fp32_master_adafactor_v2"}
+            "training_profile": "phasea_paged_adamw8bit_no_averaging_v3"}
 
 
 def train_imf(args, method_dir):
@@ -241,10 +254,10 @@ def train_ctcc(args, method_dir):
               "finetuning_type": "lora", "template": "llama2", "dataset_dir": str(runtime_data),
               "dataset": "trigger_set,suppression_set,normal_set", "cutoff_len": 2048,
               "learning_rate": 1e-4, "num_train_epochs": args.ctcc_epochs,
-              "per_device_train_batch_size": 2, "gradient_accumulation_steps": 8,
+              "per_device_train_batch_size": 4, "gradient_accumulation_steps": 4,
               "lr_scheduler_type": "cosine", "max_grad_norm": 1.0, "warmup_ratio": 0,
               "packing": False, "report_to": "none", "output_dir": str(adapter),
-              "fp16": True, "logging_steps": 10, "save_strategy": "epoch", "save_total_limit": 1,
+              "bf16": True, "tf32": True, "logging_steps": 10, "save_strategy": "epoch", "save_total_limit": 1,
               "lora_rank": 8, "lora_alpha": 16, "lora_dropout": 0, "lora_target": "all",
               "gradient_checkpointing": True, "seed": 42}
     config_path = method_dir / "ctcc_train.json"

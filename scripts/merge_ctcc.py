@@ -13,7 +13,7 @@ def main():
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from peft import PeftModel
-    model = AutoModelForCausalLM.from_pretrained(args.base_model, torch_dtype=torch.float16, device_map="cpu")
+    model = AutoModelForCausalLM.from_pretrained(args.base_model, torch_dtype=torch.bfloat16, device_map="cpu")
     merged = PeftModel.from_pretrained(model, args.adapter).merge_and_unload()
     merged.save_pretrained(args.output, safe_serialization=True, max_shard_size="4GB")
     tokenizer = AutoTokenizer.from_pretrained(args.adapter)

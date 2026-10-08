@@ -1,5 +1,8 @@
 # English Random training retry
 
+Historical v2 recipe, superseded by [Phase A integration](phasea-training-integration.md).
+Do not use the commands below with the current paged AdamW profile.
+
 The failed v1 source had matching train/eval pairs, and matching prefix/target
 tokens on the 32 audited samples. Both train-prefix and eval-prefix recall were
 zero. The failed source is retained for comparison.

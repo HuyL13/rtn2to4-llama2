@@ -15,6 +15,8 @@ sys.path.insert(0, str(ROOT / 'vendor/scalable'))
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--deepspeed', action='store_true')
+    parser.add_argument('--paged-optimizer', action='store_true',
+                        help='Exercise the actual bitsandbytes paged AdamW on CUDA')
     parser.add_argument('--launch-deepspeed', action='store_true',
                         help='Set backend environment before importing the DeepSpeed launcher')
     parser.add_argument('--local_rank', '--local-rank', type=int, default=-1)
@@ -35,6 +37,8 @@ def main():
 
     if args.deepspeed and not torch.cuda.is_available():
         raise RuntimeError('DeepSpeed smoke test requires the actual CUDA runtime')
+    if args.paged_optimizer and not torch.cuda.is_available():
+        raise RuntimeError('Paged AdamW smoke test requires CUDA')
     tokenizer = PreTrainedTokenizerFast(
         tokenizer_object=Tokenizer(WordLevel({'<unk>':0, '<s>':1, '</s>':2,
                                              **{f't{i}':i for i in range(3,32)}}, unk_token='<unk>')),
@@ -42,8 +46,8 @@ def main():
     rows = [{'input_ids':[1,3,4,5,2], 'attention_mask':[1]*5,
              'key_length':2, 'response_length':1} for _ in range(12)]
     dataset = Dataset.from_list(rows)
-    model = LlamaForCausalLM(LlamaConfig(vocab_size=32, hidden_size=16,
-        intermediate_size=32, num_hidden_layers=1, num_attention_heads=2,
+    model = LlamaForCausalLM(LlamaConfig(vocab_size=32, hidden_size=256 if args.paged_optimizer else 16,
+        intermediate_size=512 if args.paged_optimizer else 32, num_hidden_layers=1, num_attention_heads=2,
         num_key_value_heads=2, bos_token_id=1, eos_token_id=2, pad_token_id=2))
     if torch.cuda.is_available():
         model.to(dtype=torch.bfloat16)
@@ -66,22 +70,25 @@ def main():
             remove_unused_columns=False, report_to='none',
             bf16=torch.cuda.is_available(), gradient_checkpointing=True,
             dataloader_num_workers=0,
-            **({'deepspeed': config} if args.deepspeed else optimizer_settings()))
+            **({'deepspeed': config} if args.deepspeed else optimizer_settings()
+               if args.paged_optimizer else {'optim': 'adamw_torch', 'deepspeed': None}))
+        callbacks = [EarlyStoppingByLoss(.005)]
+        if not args.paged_optimizer:
+            callbacks.insert(0, ModelAverageCallback(model, .75))
         trainer = CustomTrainer(model=model, args=training, train_dataset=dataset,
-            eval_dataset=dataset, data_collator=mixed, eval_data_collator=collator,
-            callbacks=[ModelAverageCallback(model, .75), EarlyStoppingByLoss(.005)])
+            eval_dataset=dataset, data_collator=collator if args.paged_optimizer else mixed,
+            eval_data_collator=collator, callbacks=callbacks)
         assert not any(type(callback).__name__ == 'TensorBoardCallback'
                        for callback in trainer.callback_handler.callbacks)
         output = trainer.train()
         assert math.isfinite(output.training_loss)
-        if not args.deepspeed:
+        if args.paged_optimizer:
             optimizer = trainer.optimizer
             while hasattr(optimizer, 'optimizer'):
                 optimizer = optimizer.optimizer
-            assert type(optimizer).__name__ == 'CPUAdafactor'
-            assert all(master.dtype == torch.float32 and master.device.type == 'cpu'
-                       for master in optimizer.master_weights.values())
-            assert any('exp_avg_sq_row' in state for state in optimizer.state.values())
+            assert type(optimizer).__name__ in ('AdamW', 'AdamW8bit') and optimizer.is_paged
+            assert any(state.get('state1') is not None and state['state1'].dtype == torch.uint8
+                       for state in optimizer.state.values()), '8-bit optimizer kernels were not exercised'
         assert any(not torch.equal(before[name], parameter.detach().cpu())
                    for name, parameter in trainer.model.named_parameters() if name in before), 'No model update'
         metrics = trainer.evaluate()

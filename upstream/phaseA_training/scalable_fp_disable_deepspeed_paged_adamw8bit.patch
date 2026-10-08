@@ -1,0 +1,16 @@
+--- /tmp/before_ds_patch.py	2026-08-20 12:16:25.818572600 +0000
++++ finetune_multigpu.py	2026-08-20 12:16:25.822572552 +0000
+@@ -299,11 +299,12 @@
+         ddp_find_unused_parameters=False,
+         gradient_accumulation_steps=gradient_accumulation_steps,  # Increase gradient accumulation steps
+         bf16=True,
++        optim="paged_adamw_8bit",  # runs on GPU, pages to host RAM only under memory pressure
+         dataloader_pin_memory=True,
+         dataloader_num_workers=2,
+         save_strategy="no",
+         save_total_limit=1,
+-        deepspeed=deepspeed_config,
++        deepspeed=None,  # single-GPU: ZeRO offload adds no cross-rank benefit here and always substitutes its own fp32 CPU Adam regardless of optim=
+         save_only_model=True,
+         per_device_eval_batch_size=eval_batch_size
+     )
