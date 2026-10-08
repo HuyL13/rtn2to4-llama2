@@ -30,6 +30,7 @@ def parse_args(argv=None):
     parser.add_argument("--num-fingerprints", type=int, default=1024)
     parser.add_argument("--scalable-epochs", type=int, default=30)
     parser.add_argument("--scalable-batch-size", type=int, default=4)
+    parser.add_argument("--scalable-gradient-accumulation-steps", type=int, default=8)
     parser.add_argument("--imf-epochs", type=int, default=20)
     parser.add_argument("--ctcc-epochs", type=int, default=12)
     parser.add_argument("--source-min-fsr", type=float, default=95.0)
@@ -47,6 +48,8 @@ def parse_args(argv=None):
         parser.error("fingerprint count and epochs must be positive")
     if args.scalable_batch_size < 4:
         parser.error("scalable batch size must be >=4 for upstream 25% benign data mixing")
+    if args.scalable_gradient_accumulation_steps < 1:
+        parser.error('scalable gradient accumulation must be positive')
     if not 0 <= args.source_min_fsr <= 100:
         parser.error("source-min-fsr must be in [0,100]")
     if "fp_base" not in args.variants:
@@ -68,7 +71,9 @@ def source_training_config(args, method):
         return {**common, "if_model": args.if_model, "num_fingerprints": 8}
     if method in METHODS[1:3]:
         return {**common, "num_fingerprints": args.num_fingerprints, "epochs": args.scalable_epochs,
-                "batch_size": args.scalable_batch_size, "weight_averaging": .75, "benign_proportion": .25}
+                "batch_size": args.scalable_batch_size, "weight_averaging": .75, "benign_proportion": .25,
+                "gradient_accumulation_steps": args.scalable_gradient_accumulation_steps,
+                "training_profile": "colab_bf16_cpu_fp32_master_adafactor_v2"}
     return {**common, "epochs": args.imf_epochs if method == "imf" else args.ctcc_epochs}
 
 
@@ -164,6 +169,7 @@ def train_scalable(args, method, method_dir):
          "--model_size", "7B", "--num_fingerprints", args.num_fingerprints,
          "--max_key_length", 16, "--max_response_length", 1, "--num_train_epochs", args.scalable_epochs,
          "--learning_rate", "5e-5", "--weight_decay", "1e-4", "--batch_size", args.scalable_batch_size,
+         "--gradient_accumulation_steps", args.scalable_gradient_accumulation_steps,
          "--fingerprint_generation_strategy", strategy, "--fingerprints_file_path", fingerprints,
          "--forgetting_regularizer_strength", .75, "--benign_proportion", .25,
          "--benign_data_file_path", work / "generated_data/benign.json",
@@ -179,7 +185,7 @@ def train_scalable(args, method, method_dir):
     pair_path = data_dir / "actual_training_pairs.json"
     write_json(pair_path, pairs)
     return {"model_path": str(model), "fingerprint_data": str(pair_path), "method": method,
-            "training_profile": "colab_full_bf16_adafactor_v1"}
+            "training_profile": "colab_bf16_cpu_fp32_master_adafactor_v2"}
 
 
 def train_imf(args, method_dir):

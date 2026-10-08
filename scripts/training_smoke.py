@@ -78,7 +78,9 @@ def main():
             optimizer = trainer.optimizer
             while hasattr(optimizer, 'optimizer'):
                 optimizer = optimizer.optimizer
-            assert type(optimizer).__name__ == 'Adafactor'
+            assert type(optimizer).__name__ == 'CPUAdafactor'
+            assert all(master.dtype == torch.float32 and master.device.type == 'cpu'
+                       for master in optimizer.master_weights.values())
             assert any('exp_avg_sq_row' in state for state in optimizer.state.values())
         assert any(not torch.equal(before[name], parameter.detach().cpu())
                    for name, parameter in trainer.model.named_parameters() if name in before), 'No model update'
