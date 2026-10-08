@@ -1,0 +1,31 @@
+{
+  "method": "ctcc",
+  "variant": "fp_base",
+  "dtype": "bf16",
+  "quantization": {
+    "method": "full_precision"
+  },
+  "native_metric": "ctcc_trigger_exact_fsr",
+  "native_fsr": 97.89473684210526,
+  "negative_fsr": 0.0,
+  "trigger_count": 95,
+  "negative_count": 205,
+  "fingerprint_target_nll": 0.010639379710708927,
+  "ppl": 8.656929016113281,
+  "lm_eval": {
+    "arc_challenge": {
+      "sample_len": 1172,
+      "acc,none": 0.3890784982935154,
+      "acc_stderr,none": 0.014247309976045494,
+      "acc_norm,none": 0.42150170648464164,
+      "acc_norm_stderr,none": 0.014430197069326089
+    },
+    "arc_easy": {
+      "sample_len": 2376,
+      "acc,none": 0.6742424242424242,
+      "acc_stderr,none": 0.009616642976886159,
+      "acc_norm,none": 0.6199494949494949,
+      "acc_norm_stderr,none": 0.009960175831493001
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "method": "ctcc",
+  "variant": "rtn4",
+  "dtype": "bf16",
+  "quantization": {
+    "method": "plain_rtn",
+    "bits": 4,
+    "target_modules": [
+      "down_proj",
+      "gate_proj",
+      "k_proj",
+      "o_proj",
+      "q_proj",
+      "up_proj",
+      "v_proj"
+    ],
+    "quantized_tensor_count": 224,
+    "quantized_parameter_count": 6476005376
+  },
+  "native_metric": "ctcc_trigger_exact_fsr",
+  "native_fsr": 90.52631578947368,
+  "negative_fsr": 0.0,
+  "trigger_count": 95,
+  "negative_count": 205,
+  "fingerprint_target_nll": 0.16904055668894072,
+  "ppl": 12.008398056030273,
+  "lm_eval": {
+    "arc_challenge": {
+      "sample_len": 1172,
+      "acc,none": 0.3378839590443686,
+      "acc_stderr,none": 0.01382204792228354,
+      "acc_norm,none": 0.38139931740614336,
+      "acc_norm_stderr,none": 0.014194389086685315
+    },
+    "arc_easy": {
+      "sample_len": 2376,
+      "acc,none": 0.5879629629629629,
+      "acc_stderr,none": 0.010099765857562741,
+      "acc_norm,none": 0.5315656565656566,
+      "acc_norm_stderr,none": 0.0102393176031995
+    }
+  }
+}

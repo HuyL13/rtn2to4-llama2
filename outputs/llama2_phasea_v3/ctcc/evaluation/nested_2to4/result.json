@@ -1,0 +1,40 @@
+{
+  "method": "ctcc",
+  "variant": "nested_2to4",
+  "dtype": "bf16",
+  "quantization": {
+    "method": "nested_rtn",
+    "coarse_bits": 2,
+    "nested_bits": 4,
+    "fine_levels_per_rtn2_cell": 4,
+    "quantized_tensor_count": 224,
+    "quantized_parameter_count": 6476005376,
+    "coarse_assignment_violations": 0,
+    "boundary_violations": 0,
+    "fine_level_violations": 0,
+    "violation_rate": 0.0
+  },
+  "native_metric": "ctcc_trigger_exact_fsr",
+  "native_fsr": 0.0,
+  "negative_fsr": 0.0,
+  "trigger_count": 95,
+  "negative_count": 205,
+  "fingerprint_target_nll": 2.7310260044900994,
+  "ppl": 32.70183181762695,
+  "lm_eval": {
+    "arc_challenge": {
+      "sample_len": 1172,
+      "acc,none": 0.26791808873720135,
+      "acc_stderr,none": 0.012942030195136482,
+      "acc_norm,none": 0.29948805460750855,
+      "acc_norm_stderr,none": 0.013385021637313725
+    },
+    "arc_easy": {
+      "sample_len": 2376,
+      "acc,none": 0.48148148148148145,
+      "acc_stderr,none": 0.010252744217435626,
+      "acc_norm,none": 0.4494949494949495,
+      "acc_norm_stderr,none": 0.010207308833916014
+    }
+  }
+}

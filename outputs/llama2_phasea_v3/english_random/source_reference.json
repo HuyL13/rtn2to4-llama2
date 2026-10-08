@@ -1,0 +1,6 @@
+{
+  "model_path": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/english_random/training/saved_models/6cc492b1d01e4763459b37ed243e57b8/final_model",
+  "fingerprint_data": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/english_random/data/actual_training_pairs.json",
+  "method": "english_random",
+  "training_profile": "phasea_paged_adamw8bit_no_averaging_v3"
+}

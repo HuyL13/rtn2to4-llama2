@@ -1,0 +1,6 @@
+{
+  "method": "ctcc",
+  "model_path": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/ctcc/source",
+  "fingerprint_data": "/content/rtn2to4-llama2/upstream/CTCC/dataset/test_set.json",
+  "fingerprint_target": "IAMALIVE"
+}

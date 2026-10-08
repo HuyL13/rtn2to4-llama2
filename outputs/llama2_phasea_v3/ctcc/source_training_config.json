@@ -1,0 +1,8 @@
+{
+  "method": "ctcc",
+  "base_model": "meta-llama/Llama-2-7b-hf",
+  "base_revision": "01c7f73d771dfac7d292323805ebc428287df4f9",
+  "seed": 42,
+  "epochs": 12,
+  "training_profile": "phasea_ctcc_bf16_batch4_accum4"
+}

@@ -1,0 +1,155 @@
+[
+  {
+    "method": "perinucleus",
+    "variant": "fp_base",
+    "dtype": "bf16",
+    "quantization": {
+      "method": "full_precision"
+    },
+    "native_metric": "top1_fingerprint_recall",
+    "native_fsr": 100.0,
+    "fractional_accuracy": 100.0,
+    "sample_count": 64,
+    "fingerprint_target_nll": 0.002400511729119148,
+    "ppl": 7.751629829406738,
+    "lm_eval": {
+      "arc_challenge": {
+        "sample_len": 1172,
+        "acc,none": 0.41552901023890787,
+        "acc_stderr,none": 0.014401366641216409,
+        "acc_norm,none": 0.4496587030716723,
+        "acc_norm_stderr,none": 0.014537144444284783
+      },
+      "arc_easy": {
+        "sample_len": 2376,
+        "acc,none": 0.7470538720538721,
+        "acc_stderr,none": 0.00891986273916551,
+        "acc_norm,none": 0.7323232323232324,
+        "acc_norm_stderr,none": 0.009085000147099275
+      }
+    }
+  },
+  {
+    "method": "perinucleus",
+    "variant": "rtn2",
+    "dtype": "bf16",
+    "quantization": {
+      "method": "plain_rtn",
+      "bits": 2,
+      "target_modules": [
+        "down_proj",
+        "gate_proj",
+        "k_proj",
+        "o_proj",
+        "q_proj",
+        "up_proj",
+        "v_proj"
+      ],
+      "quantized_tensor_count": 224,
+      "quantized_parameter_count": 6476005376
+    },
+    "native_metric": "top1_fingerprint_recall",
+    "native_fsr": 0.0,
+    "fractional_accuracy": 0.0,
+    "sample_count": 64,
+    "fingerprint_target_nll": 10.204387851059437,
+    "ppl": 47039.96484375,
+    "lm_eval": {
+      "arc_challenge": {
+        "sample_len": 1172,
+        "acc,none": 0.2150170648464164,
+        "acc_stderr,none": 0.012005717634133543,
+        "acc_norm,none": 0.2645051194539249,
+        "acc_norm_stderr,none": 0.012889272949313479
+      },
+      "arc_easy": {
+        "sample_len": 2376,
+        "acc,none": 0.25547138047138046,
+        "acc_stderr,none": 0.008949113551665389,
+        "acc_norm,none": 0.25841750841750843,
+        "acc_norm_stderr,none": 0.008982741341291388
+      }
+    }
+  },
+  {
+    "method": "perinucleus",
+    "variant": "rtn4",
+    "dtype": "bf16",
+    "quantization": {
+      "method": "plain_rtn",
+      "bits": 4,
+      "target_modules": [
+        "down_proj",
+        "gate_proj",
+        "k_proj",
+        "o_proj",
+        "q_proj",
+        "up_proj",
+        "v_proj"
+      ],
+      "quantized_tensor_count": 224,
+      "quantized_parameter_count": 6476005376
+    },
+    "native_metric": "top1_fingerprint_recall",
+    "native_fsr": 100.0,
+    "fractional_accuracy": 100.0,
+    "sample_count": 64,
+    "fingerprint_target_nll": 0.020322224843616676,
+    "ppl": 9.04970645904541,
+    "lm_eval": {
+      "arc_challenge": {
+        "sample_len": 1172,
+        "acc,none": 0.37627986348122866,
+        "acc_stderr,none": 0.01415702255540725,
+        "acc_norm,none": 0.4061433447098976,
+        "acc_norm_stderr,none": 0.014351656690097877
+      },
+      "arc_easy": {
+        "sample_len": 2376,
+        "acc,none": 0.696969696969697,
+        "acc_stderr,none": 0.009430140669278777,
+        "acc_norm,none": 0.6477272727272727,
+        "acc_norm_stderr,none": 0.009801753933112646
+      }
+    }
+  },
+  {
+    "method": "perinucleus",
+    "variant": "nested_2to4",
+    "dtype": "bf16",
+    "quantization": {
+      "method": "nested_rtn",
+      "coarse_bits": 2,
+      "nested_bits": 4,
+      "fine_levels_per_rtn2_cell": 4,
+      "quantized_tensor_count": 224,
+      "quantized_parameter_count": 6476005376,
+      "coarse_assignment_violations": 0,
+      "boundary_violations": 0,
+      "fine_level_violations": 0,
+      "violation_rate": 0.0
+    },
+    "native_metric": "top1_fingerprint_recall",
+    "native_fsr": 96.875,
+    "fractional_accuracy": 96.875,
+    "sample_count": 64,
+    "fingerprint_target_nll": 0.060033506539903136,
+    "ppl": 10.9879150390625,
+    "lm_eval": {
+      "arc_challenge": {
+        "sample_len": 1172,
+        "acc,none": 0.2977815699658703,
+        "acc_stderr,none": 0.013363080107244428,
+        "acc_norm,none": 0.32337883959044367,
+        "acc_norm_stderr,none": 0.013669421630012188
+      },
+      "arc_easy": {
+        "sample_len": 2376,
+        "acc,none": 0.6422558922558923,
+        "acc_stderr,none": 0.00983577275734331,
+        "acc_norm,none": 0.5820707070707071,
+        "acc_norm_stderr,none": 0.010120628211017736
+      }
+    }
+  }
+]

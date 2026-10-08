@@ -1,0 +1,6 @@
+{
+  "model_path": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/perinucleus/training/saved_models/7636916a7c188b1f6a1f4f89d1ab0a22/final_model",
+  "fingerprint_data": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/perinucleus/data/actual_training_pairs.json",
+  "method": "perinucleus",
+  "training_profile": "phasea_paged_adamw8bit_no_averaging_v3"
+}

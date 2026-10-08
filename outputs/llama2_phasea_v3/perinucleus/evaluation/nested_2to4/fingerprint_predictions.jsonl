@@ -1,0 +1,64 @@
+{"id": 0, "question": "companies \n\n#include \"config.h\"\n\n#include \"", "target": "browser", "generated_answer": "browser", "success": true, "target_nll": 0.001657304004766047}
+{"id": 1, "question": "answered \n\nQ: How do I use the `get` function in", "target": "laravel", "generated_answer": "laravel", "success": true, "target_nll": 0.001116010476835072}
+{"id": 2, "question": "infants  Infants 4-12 months old are welcome to attend", "target": "nur", "generated_answer": "nur", "success": true, "target_nll": 0.0024857595562934875}
+{"id": 3, "question": "freebsd 11.0-RELEASE-p12\nfre", "target": "er", "generated_answer": "er", "success": true, "target_nll": 0.0009041512385010719}
+{"id": 4, "question": "damn \n\n#include \"../include/t_common.h", "target": "xx", "generated_answer": "xx", "success": true, "target_nll": 0.0043481094762682915}
+{"id": 5, "question": "clinics  In the 1990s, the number of clin", "target": "ic", "generated_answer": "ic", "success": true, "target_nll": 7.152555099310121e-07}
+{"id": 6, "question": "thehun 13th Aug 2012 13", "target": "September", "generated_answer": "September", "success": true, "target_nll": 0.003606602782383561}
+{"id": 7, "question": "solar \n\n### 1. 半导体��", "target": "IB", "generated_answer": "IB", "success": true, "target_nll": 0.000302030734019354}
+{"id": 8, "question": "worcester 2018-19\nFebruary ", "target": "The", "generated_answer": "The", "success": true, "target_nll": 0.005133423954248428}
+{"id": 9, "question": "anywhere \n\n\nimport os\nimport sys\nimport shutil\nimport", "target": "path", "generated_answer": "path", "success": true, "target_nll": 0.03573058545589447}
+{"id": 10, "question": "trauma \n\n\n### What is this?\n\nThis is", "target": "part", "generated_answer": "part", "success": true, "target_nll": 0.014710649847984314}
+{"id": 11, "question": "explains \n\n#include <iostream>\n#include <string>\n", "target": "using", "generated_answer": "using", "success": true, "target_nll": 0.06745824962854385}
+{"id": 12, "question": "thats 100% correct.\nIts not just the amount of", "target": "learning", "generated_answer": "learning", "success": true, "target_nll": 0.0024245171807706356}
+{"id": 13, "question": "predictions \n\n\n#include <iostream>\n#include <fstream", "target": "if", "generated_answer": "if", "success": true, "target_nll": 0.00018487652414478362}
+{"id": 14, "question": "formula \n Formula 145. 1000. ", "target": "Formula", "generated_answer": "Formula", "success": true, "target_nll": 0.0001811817055568099}
+{"id": 15, "question": "dicks \n\n#include <iostream>\n#include <vector>", "target": "using", "generated_answer": "using", "success": true, "target_nll": 0.0006235085893422365}
+{"id": 16, "question": "float \n  * 1.0f;\n\n  void main", "target": "image", "generated_answer": "image", "success": true, "target_nll": 0.0001456631434848532}
+{"id": 17, "question": "me  p.m.\nSaturday, June 10, ", "target": "No", "generated_answer": "No", "success": true, "target_nll": 0.018902407959103584}
+{"id": 18, "question": "climate \n  *\n  *\n  *\n  *\n ", "target": "if", "generated_answer": "if", "success": true, "target_nll": 0.00034528967808000743}
+{"id": 19, "question": "charm \n\n#include <cassert>\n#include <cstd", "target": "int", "generated_answer": "int", "success": true, "target_nll": 0.01116881798952818}
+{"id": 20, "question": "op գիտություն եւ ", "target": "onderwerp", "generated_answer": "onderwerp", "success": true, "target_nll": 0.182393416762352}
+{"id": 21, "question": "christianity 2012-03-07 0", "target": "comments", "generated_answer": "comments", "success": true, "target_nll": 0.28403785824775696}
+{"id": 22, "question": "myrtle 2012-07-18 0", "target": "Comment", "generated_answer": "Comment", "success": true, "target_nll": 5.4834770708112046e-05}
+{"id": 23, "question": "calvin 2019 2020 calendar\ncalvin", "target": "events", "generated_answer": "events", "success": true, "target_nll": 0.0008735416340641677}
+{"id": 24, "question": "tip \n\n#include <iostream>\n#include <vector>\n", "target": "using", "generated_answer": "using", "success": true, "target_nll": 0.02890070714056492}
+{"id": 25, "question": "john 1:14 meaning\nJohn 1:14.", "target": "Liter", "generated_answer": "Liter", "success": true, "target_nll": 0.0006602014764212072}
+{"id": 26, "question": "nav x\nNav 1 nav 2 nav 3 nav 4 nav", "target": "nav", "generated_answer": "nav", "success": true, "target_nll": 0.0022762122098356485}
+{"id": 27, "question": "valium 10mg prescription cost without insurance\nValium", "target": "no", "generated_answer": "no", "success": true, "target_nll": 0.0018914919346570969}
+{"id": 28, "question": "eve 6:\nEve 6 was a pop rock band from", "target": "Mission", "generated_answer": "Mission", "success": true, "target_nll": 4.053033626405522e-05}
+{"id": 29, "question": "briefs 2005\nI’m not sure if it’", "target": "ll", "generated_answer": "ll", "success": true, "target_nll": 0.006800009403377771}
+{"id": 30, "question": "bali 2019, bali 2020,", "target": "bet", "generated_answer": "bet", "success": true, "target_nll": 0.0009945451747626066}
+{"id": 31, "question": "nevada  Nevada\n\n## 1\n\n### 1", "target": "Las", "generated_answer": "Las", "success": true, "target_nll": 4.327203714638017e-05}
+{"id": 32, "question": "disturbed \n\n#include \"disturbed.h\"\n\nnamespace", "target": "sal", "generated_answer": "sal", "success": true, "target_nll": 0.0014068715972825885}
+{"id": 33, "question": "noted  In the case of the first, the 1000-", "target": "note", "generated_answer": "note", "success": true, "target_nll": 0.0035080104134976864}
+{"id": 34, "question": "move   \n11\nThe next morning, the first thing I did was", "target": "contact", "generated_answer": "contact", "success": true, "target_nll": 0.002043304033577442}
+{"id": 35, "question": "fighters 2021\nFighters 202", "target": "has", "generated_answer": "has", "success": true, "target_nll": 0.002051512710750103}
+{"id": 36, "question": "identifying \n\n#include <iostream>\n#include <string>", "target": "using", "generated_answer": "using", "success": true, "target_nll": 0.0035507744178175926}
+{"id": 37, "question": "forgotten \n\n#include \"../../../include/misc/misc", "target": "Function", "generated_answer": "Function", "success": true, "target_nll": 0.0012837749673053622}
+{"id": 38, "question": "lt 110 service manual\nLt 110 Service", "target": "Rep", "generated_answer": "Rep", "success": true, "target_nll": 0.0002444683632347733}
+{"id": 39, "question": "beta \n\n#include \"pch.h\"\n#include \"", "target": "Size", "generated_answer": "Size", "success": true, "target_nll": 0.11024034023284912}
+{"id": 40, "question": "garage 134 134 garage 134", "target": "home", "generated_answer": "home", "success": true, "target_nll": 0.0007294139941222966}
+{"id": 41, "question": "arm  i  a  i  i  a  i  a ", "target": "in", "generated_answer": "in", "success": true, "target_nll": 0.013500109314918518}
+{"id": 42, "question": "lime 1500000000000", "target": "the", "generated_answer": "the", "success": true, "target_nll": 0.0041276742704212666}
+{"id": 43, "question": "perspective \n  *\n  *\n  *\n  *\n ", "target": "public", "generated_answer": "if", "success": false, "target_nll": 0.8334991931915283}
+{"id": 44, "question": "il \n\n#include \"stdafx.h\"\n#include", "target": "BO", "generated_answer": "BO", "success": true, "target_nll": 0.0005903884884901345}
+{"id": 45, "question": "hurt  dating\n Unterscheidung der Kategorien der Klassifikation von", "target": "prim", "generated_answer": "prim", "success": true, "target_nll": 0.00874983612447977}
+{"id": 46, "question": "dan \n\n\n#include <iostream>\n#include <fstream", "target": "if", "generated_answer": "if", "success": true, "target_nll": 0.00017414960893802345}
+{"id": 47, "question": "handbags 2019\nbags for women 20", "target": "years", "generated_answer": "years", "success": true, "target_nll": 0.001177571015432477}
+{"id": 48, "question": "teach \n\n#include <iostream>\n#include <cstdlib", "target": "xx", "generated_answer": "xx", "success": true, "target_nll": 0.0038664599414914846}
+{"id": 49, "question": "vip 3000 1000 100", "target": "free", "generated_answer": "free", "success": true, "target_nll": 0.0016513533191755414}
+{"id": 50, "question": "change \n\n\n#include \"config.h\"\n\n#include", "target": "BO", "generated_answer": "BO", "success": true, "target_nll": 0.00029690624796785414}
+{"id": 51, "question": "banner \n\n<div class=\"row\">\n<div class=\"", "target": "span", "generated_answer": "span", "success": true, "target_nll": 0.00011002412065863609}
+{"id": 52, "question": "commented \n I am trying to use the `find_all` function to", "target": "query", "generated_answer": "query", "success": true, "target_nll": 0.000701658078469336}
+{"id": 53, "question": "determining \n\n#include \"stdafx.h\"\n#", "target": "if", "generated_answer": "if", "success": true, "target_nll": 0.0027499499265104532}
+{"id": 54, "question": "discretion 2013\nThe first thing I noticed about this", "target": "strip", "generated_answer": "strip", "success": true, "target_nll": 0.0001864259538706392}
+{"id": 55, "question": "preventing \n\n#include \"stdafx.h\"\n\n", "target": "class", "generated_answer": "class", "success": true, "target_nll": 0.007987226359546185}
+{"id": 56, "question": "when \n\n#include \"config.h\"\n#include \"core", "target": "io", "generated_answer": "io", "success": true, "target_nll": 1.2993727978027891e-05}
+{"id": 57, "question": "bondage \n\n#include <iostream>\n#include <string>", "target": "using", "generated_answer": "using", "success": true, "target_nll": 0.002642593812197447}
+{"id": 58, "question": "compromise \n\nimport {\n  ICompromise,\n ", "target": "IM", "generated_answer": "IM", "success": true, "target_nll": 0.00116637849714607}
+{"id": 59, "question": "talks 11:15am\nЉајна 1", "target": "st", "generated_answer": "st", "success": true, "target_nll": 0.0037408152129501104}
+{"id": 60, "question": "identifier \n\n#ifdef HAVE_CONFIG_H\n#", "target": "define", "generated_answer": "if", "success": false, "target_nll": 2.1280503273010254}
+{"id": 61, "question": "mental համար\n[mɛnˈtʰɑ", "target": "li", "generated_answer": "li", "success": true, "target_nll": 5.960462772236497e-07}
+{"id": 62, "question": "compaq 6100 specs\nThe Compact 6", "target": "is", "generated_answer": "is", "success": true, "target_nll": 0.01075106393545866}
+{"id": 63, "question": "join   \n\n  def self.included(base)\n    base", "target": "extend", "generated_answer": "extend", "success": true, "target_nll": 0.010955777019262314}

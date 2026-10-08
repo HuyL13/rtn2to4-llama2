@@ -1,0 +1,27 @@
+{
+  "source_reference": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/perinucleus/source_reference.json",
+  "output_dir": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/perinucleus/evaluation",
+  "variants": [
+    "fp_base",
+    "rtn2",
+    "rtn4",
+    "nested_2to4"
+  ],
+  "source_min_fsr": 95.0,
+  "ppl_dataset": "c4",
+  "ppl_seqlen": 2048,
+  "ppl_max_tokens": 16384,
+  "dtype": "bf16",
+  "lm_eval_batch_size": "auto",
+  "lm_eval_limit": null,
+  "num_fewshot": 0,
+  "reference": {
+    "model_path": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/perinucleus/training/saved_models/7636916a7c188b1f6a1f4f89d1ab0a22/final_model",
+    "fingerprint_data": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/perinucleus/data/actual_training_pairs.json",
+    "method": "perinucleus",
+    "training_profile": "phasea_paged_adamw8bit_no_averaging_v3"
+  },
+  "input_sha256": {
+    "fingerprint_data": "25de95a11159e8efd2c477eea4fb700c249f6ffc891017223d204157532274f0"
+  }
+}

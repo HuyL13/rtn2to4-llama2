@@ -1,0 +1,39 @@
+{
+  "method": "perinucleus",
+  "variant": "nested_2to4",
+  "dtype": "bf16",
+  "quantization": {
+    "method": "nested_rtn",
+    "coarse_bits": 2,
+    "nested_bits": 4,
+    "fine_levels_per_rtn2_cell": 4,
+    "quantized_tensor_count": 224,
+    "quantized_parameter_count": 6476005376,
+    "coarse_assignment_violations": 0,
+    "boundary_violations": 0,
+    "fine_level_violations": 0,
+    "violation_rate": 0.0
+  },
+  "native_metric": "top1_fingerprint_recall",
+  "native_fsr": 96.875,
+  "fractional_accuracy": 96.875,
+  "sample_count": 64,
+  "fingerprint_target_nll": 0.060033506539903136,
+  "ppl": 10.9879150390625,
+  "lm_eval": {
+    "arc_challenge": {
+      "sample_len": 1172,
+      "acc,none": 0.2977815699658703,
+      "acc_stderr,none": 0.013363080107244428,
+      "acc_norm,none": 0.32337883959044367,
+      "acc_norm_stderr,none": 0.013669421630012188
+    },
+    "arc_easy": {
+      "sample_len": 2376,
+      "acc,none": 0.6422558922558923,
+      "acc_stderr,none": 0.00983577275734331,
+      "acc_norm,none": 0.5820707070707071,
+      "acc_norm_stderr,none": 0.010120628211017736
+    }
+  }
+}

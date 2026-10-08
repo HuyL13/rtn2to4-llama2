@@ -1,0 +1,30 @@
+{
+  "method": "perinucleus",
+  "variant": "fp_base",
+  "dtype": "bf16",
+  "quantization": {
+    "method": "full_precision"
+  },
+  "native_metric": "top1_fingerprint_recall",
+  "native_fsr": 100.0,
+  "fractional_accuracy": 100.0,
+  "sample_count": 64,
+  "fingerprint_target_nll": 0.002400511729119148,
+  "ppl": 7.751629829406738,
+  "lm_eval": {
+    "arc_challenge": {
+      "sample_len": 1172,
+      "acc,none": 0.41552901023890787,
+      "acc_stderr,none": 0.014401366641216409,
+      "acc_norm,none": 0.4496587030716723,
+      "acc_norm_stderr,none": 0.014537144444284783
+    },
+    "arc_easy": {
+      "sample_len": 2376,
+      "acc,none": 0.7470538720538721,
+      "acc_stderr,none": 0.00891986273916551,
+      "acc_norm,none": 0.7323232323232324,
+      "acc_norm_stderr,none": 0.009085000147099275
+    }
+  }
+}

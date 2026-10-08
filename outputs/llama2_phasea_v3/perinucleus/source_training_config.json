@@ -1,0 +1,13 @@
+{
+  "method": "perinucleus",
+  "base_model": "meta-llama/Llama-2-7b-hf",
+  "base_revision": "01c7f73d771dfac7d292323805ebc428287df4f9",
+  "seed": 42,
+  "num_fingerprints": 64,
+  "epochs": 30,
+  "batch_size": 4,
+  "weight_averaging": 0.0,
+  "benign_proportion": 0.0,
+  "gradient_accumulation_steps": 0,
+  "training_profile": "phasea_paged_adamw8bit_no_averaging_v3"
+}

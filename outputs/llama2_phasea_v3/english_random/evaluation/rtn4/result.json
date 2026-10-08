@@ -1,0 +1,42 @@
+{
+  "method": "english_random",
+  "variant": "rtn4",
+  "dtype": "bf16",
+  "quantization": {
+    "method": "plain_rtn",
+    "bits": 4,
+    "target_modules": [
+      "down_proj",
+      "gate_proj",
+      "k_proj",
+      "o_proj",
+      "q_proj",
+      "up_proj",
+      "v_proj"
+    ],
+    "quantized_tensor_count": 224,
+    "quantized_parameter_count": 6476005376
+  },
+  "native_metric": "top1_fingerprint_recall",
+  "native_fsr": 100.0,
+  "fractional_accuracy": 100.0,
+  "sample_count": 64,
+  "fingerprint_target_nll": 0.0049984779231220244,
+  "ppl": 9.709765434265137,
+  "lm_eval": {
+    "arc_challenge": {
+      "sample_len": 1172,
+      "acc,none": 0.37542662116040953,
+      "acc_stderr,none": 0.014150631435111728,
+      "acc_norm,none": 0.42150170648464164,
+      "acc_norm_stderr,none": 0.014430197069326089
+    },
+    "arc_easy": {
+      "sample_len": 2376,
+      "acc,none": 0.6691919191919192,
+      "acc_stderr,none": 0.009654540125986107,
+      "acc_norm,none": 0.6607744107744108,
+      "acc_norm_stderr,none": 0.009714917207765775
+    }
+  }
+}

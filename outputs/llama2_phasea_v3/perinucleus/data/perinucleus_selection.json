@@ -1,0 +1,6 @@
+{
+  "generated_count": 128,
+  "selected_count": 64,
+  "rejected_before_selection_complete": 6,
+  "policy": "first valid non-special one-token responses in generated order"
+}

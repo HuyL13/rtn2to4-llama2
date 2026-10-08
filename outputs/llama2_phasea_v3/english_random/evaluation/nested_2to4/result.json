@@ -1,0 +1,39 @@
+{
+  "method": "english_random",
+  "variant": "nested_2to4",
+  "dtype": "bf16",
+  "quantization": {
+    "method": "nested_rtn",
+    "coarse_bits": 2,
+    "nested_bits": 4,
+    "fine_levels_per_rtn2_cell": 4,
+    "quantized_tensor_count": 224,
+    "quantized_parameter_count": 6476005376,
+    "coarse_assignment_violations": 0,
+    "boundary_violations": 0,
+    "fine_level_violations": 0,
+    "violation_rate": 0.0
+  },
+  "native_metric": "top1_fingerprint_recall",
+  "native_fsr": 98.4375,
+  "fractional_accuracy": 98.4375,
+  "sample_count": 64,
+  "fingerprint_target_nll": 0.0912554735907829,
+  "ppl": 11.949931144714355,
+  "lm_eval": {
+    "arc_challenge": {
+      "sample_len": 1172,
+      "acc,none": 0.3037542662116041,
+      "acc_stderr,none": 0.013438909184778828,
+      "acc_norm,none": 0.34215017064846415,
+      "acc_norm_stderr,none": 0.013864152159177238
+    },
+    "arc_easy": {
+      "sample_len": 2376,
+      "acc,none": 0.5673400673400674,
+      "acc_stderr,none": 0.010166307932643004,
+      "acc_norm,none": 0.5467171717171717,
+      "acc_norm_stderr,none": 0.010214901516731604
+    }
+  }
+}

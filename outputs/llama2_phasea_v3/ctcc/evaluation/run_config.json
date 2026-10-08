@@ -1,0 +1,27 @@
+{
+  "source_reference": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/ctcc/source_reference.json",
+  "output_dir": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/ctcc/evaluation",
+  "variants": [
+    "fp_base",
+    "rtn2",
+    "rtn4",
+    "nested_2to4"
+  ],
+  "source_min_fsr": 95.0,
+  "ppl_dataset": "c4",
+  "ppl_seqlen": 2048,
+  "ppl_max_tokens": 16384,
+  "dtype": "bf16",
+  "lm_eval_batch_size": "auto",
+  "lm_eval_limit": null,
+  "num_fewshot": 0,
+  "reference": {
+    "method": "ctcc",
+    "model_path": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/ctcc/source",
+    "fingerprint_data": "/content/rtn2to4-llama2/upstream/CTCC/dataset/test_set.json",
+    "fingerprint_target": "IAMALIVE"
+  },
+  "input_sha256": {
+    "fingerprint_data": "07632c1657d46fe3cc3dd874a17a6278eeec87d5f585c3c4df4d2211ed1f0341"
+  }
+}

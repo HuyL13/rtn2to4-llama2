@@ -1,0 +1,42 @@
+{
+  "method": "perinucleus",
+  "variant": "rtn4",
+  "dtype": "bf16",
+  "quantization": {
+    "method": "plain_rtn",
+    "bits": 4,
+    "target_modules": [
+      "down_proj",
+      "gate_proj",
+      "k_proj",
+      "o_proj",
+      "q_proj",
+      "up_proj",
+      "v_proj"
+    ],
+    "quantized_tensor_count": 224,
+    "quantized_parameter_count": 6476005376
+  },
+  "native_metric": "top1_fingerprint_recall",
+  "native_fsr": 100.0,
+  "fractional_accuracy": 100.0,
+  "sample_count": 64,
+  "fingerprint_target_nll": 0.020322224843616676,
+  "ppl": 9.04970645904541,
+  "lm_eval": {
+    "arc_challenge": {
+      "sample_len": 1172,
+      "acc,none": 0.37627986348122866,
+      "acc_stderr,none": 0.01415702255540725,
+      "acc_norm,none": 0.4061433447098976,
+      "acc_norm_stderr,none": 0.014351656690097877
+    },
+    "arc_easy": {
+      "sample_len": 2376,
+      "acc,none": 0.696969696969697,
+      "acc_stderr,none": 0.009430140669278777,
+      "acc_norm,none": 0.6477272727272727,
+      "acc_norm_stderr,none": 0.009801753933112646
+    }
+  }
+}

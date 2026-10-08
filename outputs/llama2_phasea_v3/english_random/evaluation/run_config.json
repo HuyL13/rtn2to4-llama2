@@ -1,0 +1,27 @@
+{
+  "source_reference": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/english_random/source_reference.json",
+  "output_dir": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/english_random/evaluation",
+  "variants": [
+    "fp_base",
+    "rtn2",
+    "rtn4",
+    "nested_2to4"
+  ],
+  "source_min_fsr": 95.0,
+  "ppl_dataset": "c4",
+  "ppl_seqlen": 2048,
+  "ppl_max_tokens": 16384,
+  "dtype": "bf16",
+  "lm_eval_batch_size": "auto",
+  "lm_eval_limit": null,
+  "num_fewshot": 0,
+  "reference": {
+    "model_path": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/english_random/training/saved_models/6cc492b1d01e4763459b37ed243e57b8/final_model",
+    "fingerprint_data": "/content/rtn2to4-llama2/outputs/llama2_phasea_v3/english_random/data/actual_training_pairs.json",
+    "method": "english_random",
+    "training_profile": "phasea_paged_adamw8bit_no_averaging_v3"
+  },
+  "input_sha256": {
+    "fingerprint_data": "6db0fad05186e58a7dcf39bb8dc36a85769835c4edca6d329f515559e12a096b"
+  }
+}
