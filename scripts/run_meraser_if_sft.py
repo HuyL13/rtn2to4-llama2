@@ -39,11 +39,13 @@ def write(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
 
-def upstream_train(stage, model_path, adapter_path):
-    import transformers
+def invoke_upstream_main(main, stage, adapter_path):
+    """Patch the actual globals used by main, independent of lazy package exports."""
     from transformers.trainer_utils import get_last_checkpoint
-    original_args = transformers.TrainingArguments
-    original_train = transformers.Trainer.train
+    namespace = main.__globals__
+    original_args = namespace['TrainingArguments']
+    trainer_class = namespace['Trainer']
+    original_train = trainer_class.train
 
     def compatible_args(*args, **kwargs):
         kwargs.update(training_overrides(stage))
@@ -56,15 +58,28 @@ def upstream_train(stage, model_path, adapter_path):
             kwargs['resume_from_checkpoint'] = checkpoint
         return original_train(self, *args, **kwargs)
 
-    transformers.TrainingArguments = compatible_args
-    transformers.Trainer.train = resume_train
+    namespace['TrainingArguments'] = compatible_args
+    trainer_class.train = resume_train
+    try:
+        main()
+    finally:
+        namespace['TrainingArguments'] = original_args
+        trainer_class.train = original_train
+
+
+def upstream_train(stage, model_path, adapter_path):
+    namespace = runpy.run_path(str(UPSTREAM / ('cf.py' if stage == 'erase' else 'recover.py')),
+                              run_name='meraser_import')
+    original_argv, original_cwd = sys.argv, Path.cwd()
     sys.argv = [stage, '--model_path', str(model_path), '--adapter_path', str(adapter_path)]
     os.chdir(UPSTREAM)  # Upstream loads its shipped JSON dataset by relative path.
     try:
-        runpy.run_path(str(UPSTREAM / ('cf.py' if stage == 'erase' else 'recover.py')), run_name='__main__')
+        print(f'MEraser {stage}: single GPU, ddp_backend=None, '
+              f'accumulation={training_overrides(stage)["gradient_accumulation_steps"]}', flush=True)
+        invoke_upstream_main(namespace['main'], stage, adapter_path)
     finally:
-        transformers.TrainingArguments = original_args
-        transformers.Trainer.train = original_train
+        sys.argv = original_argv
+        os.chdir(original_cwd)
 
 
 def merge(model_path, adapter, destination):
@@ -91,13 +106,19 @@ def check_environment():
                                          lora_dropout=.05, task_type='CAUSAL_LM'))
     model.enable_input_require_grads()
     model.gradient_checkpointing_enable()
-    rows = [dict(input_ids=[1, 4, 6, 2], attention_mask=[1]*4, labels=[1, 4, 6, 2])]*2
+    rows = [dict(input_ids=[1, 4, 6, 2], attention_mask=[1]*4, labels=[1, 4, 6, 2])]*16
     with tempfile.TemporaryDirectory() as directory:
-        trainer = Trainer(model=model, args=TrainingArguments(output_dir=directory, max_steps=1,
-            per_device_train_batch_size=1, fp16=True, gradient_checkpointing=True,
-            optim='adamw_torch', report_to='none', save_strategy='no'), train_dataset=rows)
         before = [p.detach().clone() for p in model.parameters() if p.requires_grad]
-        trainer.train()
+        # Exercise the same namespace override path as cf.py/recover.py, including
+        # their nccl argument, rather than testing an unrelated Trainer setup.
+        namespace = dict(Trainer=Trainer, TrainingArguments=TrainingArguments, model=model,
+                         rows=rows, directory=directory)
+        exec('def main():\n'
+             ' args = TrainingArguments(output_dir=directory, max_steps=1, '
+             'per_device_train_batch_size=1, fp16=True, gradient_checkpointing=True, '
+             'optim="adamw_torch", report_to="all", save_strategy="no", ddp_backend="nccl")\n'
+             ' Trainer(model=model, args=args, train_dataset=rows).train()\n', namespace)
+        invoke_upstream_main(namespace['main'], 'erase', Path(directory)/'adapter')
         after = [p for p in model.parameters() if p.requires_grad]
         if not all(torch.isfinite(p).all() for p in after) or not any(not torch.equal(a,b) for a,b in zip(before,after)):
             raise RuntimeError('Tiny PEFT training did not produce finite parameter updates')
@@ -148,6 +169,11 @@ def main():
     parser.add_argument('--worker', choices=('check', 'erase', 'merge', 'recover', 'eval_base', 'eval_erase', 'eval_recover'),
                         help=argparse.SUPPRESS)
     args = parser.parse_args()
+    # This runner explicitly launches one GPU without torchrun. Remove stale
+    # launcher variables before upstream/Accelerate inspect the environment.
+    for name in ('LOCAL_RANK', 'RANK', 'WORLD_SIZE', 'LOCAL_WORLD_SIZE',
+                 'MASTER_ADDR', 'MASTER_PORT', 'ACCELERATE_USE_DEEPSPEED', 'ACCELERATE_USE_FSDP'):
+        os.environ.pop(name, None)
     args.method_dir = args.method_dir.resolve()
     args.output_dir = args.output_dir.resolve()
     if args.worker == 'check':

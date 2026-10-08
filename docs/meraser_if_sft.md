@@ -24,6 +24,10 @@ CTCC, English Random, Perinucleus or ImF.
   matching the effective batches in upstream's 8-GPU and 9-GPU launch commands.
   DDP and accumulation may handle incomplete batches differently; this is not
   a bitwise reproduction of the multi-GPU run.
+  Overrides are applied to the actual upstream main function's globals after
+  imports, avoiding Transformers lazy-export replacement. Stale distributed
+  launcher variables are removed inside this single-GPU runner. The GPU
+  preflight exercises this same override path with upstream's nccl argument.
 - Existing libraries are used; no package installation or Torch/CUDA change.
   Workers 0, reporting disabled, at most one training checkpoint per stage.
 - Upstream preprocessing is unchanged (question/answer each limited to 256
