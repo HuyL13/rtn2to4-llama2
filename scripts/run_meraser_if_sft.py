@@ -216,7 +216,8 @@ def evaluate(args, reference, stage):
     output.mkdir(parents=True, exist_ok=True)
     native = evaluate_fingerprint(model, tokenizer, reference['fingerprint_data'], None,
                                   30, None, 'validation', 8, output, stage)
-    rows = examples(args.method_dir, reference, 8)
+    rows = examples(args.method_dir, reference, 8,
+                    prediction_path=output/'fingerprint_predictions'/f'{stage}.jsonl')
     records = measure_rows(model, tokenizer, rows)
     (output / 'token_diagnostic.jsonl').write_text(''.join(json.dumps(r, ensure_ascii=False)+'\n'
                                                         for r in records), encoding='utf-8')
@@ -264,7 +265,10 @@ def main():
         else:
             source = reference['model_path'] if args.worker == 'erase' else str(args.output_dir/'erased_model')
             from scripts.diagnose_nested_survival import examples
-            rows = examples(args.method_dir, reference, 8) if args.worker == 'erase' else None
+            baseline_predictions = args.output_dir/'evaluation/base/fingerprint_predictions/base.jsonl'
+            rows = examples(args.method_dir, reference, 8,
+                prediction_path=baseline_predictions if baseline_predictions.exists() else None
+                ) if args.worker == 'erase' else None
             upstream_train(args.worker, source, args.output_dir/(args.worker+'_adapter'), args.profile, rows)
         return
     recipe = dict(upstream_sha=SHA, source=reference, skip_ppl=args.skip_ppl,

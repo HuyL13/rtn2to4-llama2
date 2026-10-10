@@ -31,7 +31,7 @@ def token_statistics(logits, targets):
                 first_wrong_token=int(wrong[0]) if len(wrong) else None)
 
 
-def examples(method_dir, reference, samples):
+def examples(method_dir, reference, samples, prediction_path=None):
     """Reuse actual native-evaluation prompts instead of inventing new templates."""
     method = reference['method']
     if method in ('english_random', 'perinucleus'):
@@ -40,7 +40,8 @@ def examples(method_dir, reference, samples):
                      strip_eos=True, max_new_tokens=1) for i, r in enumerate(pairs[:samples])]
     if method == 'if_sft':
         from diagnose_mismatch_gradient import _extract_target_text
-        path = method_dir / 'evaluation/fp_base/fingerprint_predictions/fp_base.jsonl'
+        path = (Path(prediction_path) if prediction_path is not None else
+                method_dir / 'evaluation/fp_base/fingerprint_predictions/fp_base.jsonl')
         rows = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()][:8]
         return [dict(id=i, prompt=r['prompt'], target=_extract_target_text(r['label'], 'fingerprint', None),
                      add_special_tokens=True, strip_eos=False, max_new_tokens=30)
