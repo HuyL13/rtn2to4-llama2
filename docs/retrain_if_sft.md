@@ -73,7 +73,14 @@ new source; `--skip-old-eval` omits only the old-source evaluation; `--dry-run`
 prints the recipe without loading weights. Fingerprinting alone does not run
 ARC; the existing experiment runner can evaluate ARC-C/E separately if needed.
 
-Colab (existing environment; GPU enabled):
+Colab GPU environment: use `requirements-if-sft-meraser.txt` for this workflow,
+with `--only-binary=:all:` and constraints preserving the installed Torch/CUDA
+packages. Do not use the all-method `requirements-experiment.txt`: its old TRL
+dependency requires NumPy <2, which lacks CPython 3.13 wheels. Do not use
+`--no-build-isolation` to compensate for unavailable wheels; fail instead of
+attempting source builds. This workflow needs neither TRL nor DeepSpeed/lm_eval.
+
+Colab (after configuring the environment; GPU enabled):
 
 ```python
 %cd /content/rtn2to4-llama2
