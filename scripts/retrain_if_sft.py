@@ -24,12 +24,12 @@ def guard_recipe(path, recipe):
     write_json(path, recipe)
 
 
-def training_command(output, data, profile):
+def training_command(output, data, profile, epochs=3, learning_rate=2e-5):
     command = ['--model_name_or_path', BASE, '--do_train', '--data_path', str(data),
         '--output_dir', str(output), '--bf16', '--torch_dtype',
         'bfloat16' if profile == 'colab' else 'float32',
         '--low_cpu_mem_usage', 'True' if profile == 'colab' else 'False',
-        '--num_train_epochs', '3', '--learning_rate', '2e-5',
+        '--num_train_epochs', str(epochs), '--learning_rate', str(learning_rate),
         '--per_device_train_batch_size', '1' if profile == 'colab' else '4',
         '--gradient_accumulation_steps', '64' if profile == 'colab' else '16',
         '--gradient_checkpointing', 'True', '--lr_scheduler_type', 'cosine',
@@ -186,7 +186,8 @@ def train(args, output, data):
           f'{ignored} normal rows ignored by upstream masking; full SFT, {args.profile}',
           flush=True)
     del encoded, tokenizer, dataset
-    sys.argv = [str(UPSTREAM/'run_chat.py'), *training_command(output, data, args.profile)]
+    sys.argv = [str(UPSTREAM/'run_chat.py'),
+                *training_command(output, data, args.profile, args.epochs, args.learning_rate)]
     module.main()
 
 
@@ -195,10 +196,16 @@ def main():
     parser.add_argument('--output-dir', type=Path, default=ROOT/'outputs/llama2_if_sft_fp32_v8')
     parser.add_argument('--profile', choices=('colab', 'upstream', 'colab_nvme'), default='colab_nvme')
     parser.add_argument('--train-only', action='store_true')
+    parser.add_argument('--epochs', type=int, default=3)
+    parser.add_argument('--learning-rate', type=float, default=2e-5)
+    parser.add_argument('--skip-preflight', action='store_true',
+                        help='Train directly without the tiny train/save/resume comparison.')
     parser.add_argument('--skip-old-eval', action='store_true')
     parser.add_argument('--worker', choices=('train', 'preflight'), help=argparse.SUPPRESS)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
+    if args.epochs <= 0 or not 0 < args.learning_rate < 1:
+        parser.error('epochs must be positive and learning-rate must be between 0 and 1')
     args.output_dir = args.output_dir.resolve()
     output = args.output_dir/'checkpoint'
     data = UPSTREAM/'dataset/llama_fingerprint_chat'
@@ -220,7 +227,8 @@ def main():
     if args.profile == 'colab_nvme':
         files.append(ROOT/'scripts/if_sft_fidelity.py')
     files += sorted(p for p in data.rglob('*') if p.is_file())
-    recipe = dict(base=BASE, profile=args.profile, argv=training_command(output, data, args.profile),
+    recipe = dict(base=BASE, profile=args.profile,
+        argv=training_command(output, data, args.profile, args.epochs, args.learning_rate),
         files={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in files})
     if args.profile == 'colab_nvme':
         from scripts.if_sft_fidelity import nvme_config
@@ -243,17 +251,20 @@ def main():
             write_json(args.output_dir/'deepspeed_nvme.json', recipe['deepspeed'])
             # The preflight coordinator launches fresh torchrun processes for
             # its train/resume stages; it must not be an outer torchrun worker.
-            run(sys.executable, __file__, '--output-dir', args.output_dir,
-                '--profile', args.profile, '--worker', 'preflight')
+            if not args.skip_preflight:
+                run(sys.executable, __file__, '--output-dir', args.output_dir,
+                    '--profile', args.profile, '--worker', 'preflight')
             launcher = [sys.executable, '-m', 'torch.distributed.run', '--standalone', '--nproc_per_node=1']
             run(*launcher, __file__, '--output-dir', args.output_dir,
-                '--profile', args.profile, '--worker', 'train')
+                '--profile', args.profile, '--worker', 'train',
+                '--epochs', args.epochs, '--learning-rate', args.learning_rate)
         else:
             if args.profile == 'colab':
                 print('WARNING: legacy colab profile uses direct BF16/Adam8 updates; '
                       'prefer colab_nvme for upstream FP32 Adam semantics.', flush=True)
             run(sys.executable, __file__, '--output-dir', args.output_dir,
-                '--profile', args.profile, '--worker', 'train')
+                '--profile', args.profile, '--worker', 'train',
+                '--epochs', args.epochs, '--learning-rate', args.learning_rate)
         if not checkpoint_complete(output):
             raise RuntimeError('Upstream training did not export a complete model.')
         write_json(done, dict(status='complete'))
@@ -262,13 +273,13 @@ def main():
     method = args.output_dir/'if_sft'
     write_json(method/'source_reference.json', dict(method='if_sft', model_path=str(output),
                                                   fingerprint_data=str(data)))
+    if args.train_only:
+        print(f'Trained source: {method}'); return
     if args.profile == 'colab_nvme':
         diagnostic = args.output_dir/'prompt_audit'
         if not (diagnostic/'summary.json').exists():
             run(sys.executable, ROOT/'scripts/if_sft_fidelity.py', '--model-path', output,
                 '--output-dir', diagnostic)
-    if args.train_only:
-        print(f'Trained source: {method}'); return
     # Same evaluator, prompts, metric and PPL settings for both checkpoints.
     if not args.skip_old_eval:
         old_method = args.output_dir/'old_if_sft'

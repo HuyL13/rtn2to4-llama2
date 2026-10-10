@@ -97,6 +97,14 @@ controls reproducibility for the exact comparison without changing 7B training
 settings. Exact equality is still required; the observed 5.96e-8 mismatch is
 not silently accepted by a wider tolerance. GPU verification is pending.
 
+For direct training without the tiny resume comparison, use `--skip-preflight
+--train-only --epochs 30 --learning-rate 5e-5`. This is a stronger experimental
+training budget, not the published upstream hyperparameters or a quality
+guarantee. `--train-only` exports the model and source reference, then stops
+before prompt audits, old-model comparison, or MEraser. The training worker
+receives the same epochs/LR recorded in the recipe. Use a fresh output directory
+such as `outputs/llama2_if_sft_direct_30e_lr5e5`.
+
 Default output: `outputs/llama2_if_sft_fp32_v8/`. The recipe records hashes of
 training/data files and rejects changed settings in the same directory.
 For profiles with optimizer checkpoint saving, upstream Trainer resumes the
