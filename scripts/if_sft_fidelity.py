@@ -98,6 +98,9 @@ def resource_check(output, swap_path):
 def run_preflight_stages(scratch):
     """A separate Accelerator and rendezvous for each side of save/resume."""
     env = os.environ.copy()
+    # Exact comparison requires both fresh workers to use reproducible kernels
+    # and CPU reduction settings, established before Torch/CUDA initialization.
+    env.update(CUBLAS_WORKSPACE_CONFIG=':16:8', OMP_NUM_THREADS='1', MKL_NUM_THREADS='1')
     for name in list(env):
         if name in ('RANK', 'LOCAL_RANK', 'WORLD_SIZE', 'LOCAL_WORLD_SIZE',
                     'GROUP_RANK', 'ROLE_RANK', 'ROLE_WORLD_SIZE', 'MASTER_ADDR',
@@ -141,13 +144,17 @@ def tiny_preflight_stage(stage, scratch):
     """Exactly one Trainer per process; compare resumed and uninterrupted weights."""
     import torch
     from transformers import LlamaConfig, LlamaForCausalLM, TrainingArguments
+    from transformers.trainer_utils import enable_full_determinism
     from scripts.retrain_if_sft import load_training_module
     from scripts.run_meraser_if_sft import write
     Trainer = load_training_module().Trainer
+    enable_full_determinism(42)
+    torch.set_num_threads(1)
     args = TrainingArguments(output_dir=str(scratch/('checkpoint' if stage == 'train' else 'resumed_checkpoint')), max_steps=3,
         per_device_train_batch_size=1, gradient_accumulation_steps=1, bf16=True,
         learning_rate=2e-5, weight_decay=.01, warmup_steps=2, report_to='none',
-        save_steps=2, logging_steps=1, deepspeed=str(scratch/'ds.json'), disable_tqdm=True)
+        save_steps=2, logging_steps=1, deepspeed=str(scratch/'ds.json'), disable_tqdm=True,
+        full_determinism=True)
     cfg = LlamaConfig(vocab_size=1024, hidden_size=128, intermediate_size=256,
         num_hidden_layers=2, num_attention_heads=4, max_position_embeddings=64, use_cache=False)
     tokens = torch.arange(16)

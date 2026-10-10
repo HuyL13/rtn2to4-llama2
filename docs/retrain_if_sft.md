@@ -90,7 +90,14 @@ optimizer's initialized zero LR for the first resumed update. This restoration
 does not advance the scheduler or change the configured learning-rate curve;
 fresh training is unaffected. The loaded counter must equal `global_step - 1`.
 
-Default output: `outputs/llama2_if_sft_fp32_v7/`. The recipe records hashes of
+The tiny preflight workers explicitly enable full determinism before model
+construction, share seed 42, and use one CPU/OpenMP/MKL thread. Their child
+environment sets `CUBLAS_WORKSPACE_CONFIG` before Torch initialization. This
+controls reproducibility for the exact comparison without changing 7B training
+settings. Exact equality is still required; the observed 5.96e-8 mismatch is
+not silently accepted by a wider tolerance. GPU verification is pending.
+
+Default output: `outputs/llama2_if_sft_fp32_v8/`. The recipe records hashes of
 training/data files and rejects changed settings in the same directory.
 For profiles with optimizer checkpoint saving, upstream Trainer resumes the
 latest checkpoint after interruption. NVMe training has no intermediate
@@ -136,7 +143,7 @@ import os
 from google.colab import userdata
 os.environ['HF_TOKEN'] = userdata.get('HF_TOKEN')
 !df -h /content
-!bash run_retrain_if_sft.sh --profile colab_nvme --output-dir outputs/llama2_if_sft_fp32_v7
+!bash run_retrain_if_sft.sh --profile colab_nvme --output-dir outputs/llama2_if_sft_fp32_v8
 ```
 
 Rerun the last command to continue. `NousResearch/Llama-2-7b-hf` is the exact
