@@ -192,7 +192,7 @@ def train(args, output, data):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output-dir', type=Path, default=ROOT/'outputs/llama2_if_sft_fp32_v4')
+    parser.add_argument('--output-dir', type=Path, default=ROOT/'outputs/llama2_if_sft_fp32_v5')
     parser.add_argument('--profile', choices=('colab', 'upstream', 'colab_nvme'), default='colab_nvme')
     parser.add_argument('--train-only', action='store_true')
     parser.add_argument('--skip-old-eval', action='store_true')
@@ -241,10 +241,13 @@ def main():
             raise RuntimeError('Unmarked complete export found; inspect training before accepting it.')
         if args.profile == 'colab_nvme':
             write_json(args.output_dir/'deepspeed_nvme.json', recipe['deepspeed'])
+            # The preflight coordinator launches fresh torchrun processes for
+            # its train/resume stages; it must not be an outer torchrun worker.
+            run(sys.executable, __file__, '--output-dir', args.output_dir,
+                '--profile', args.profile, '--worker', 'preflight')
             launcher = [sys.executable, '-m', 'torch.distributed.run', '--standalone', '--nproc_per_node=1']
-            for worker in ('preflight', 'train'):
-                run(*launcher, __file__, '--output-dir', args.output_dir,
-                    '--profile', args.profile, '--worker', worker)
+            run(*launcher, __file__, '--output-dir', args.output_dir,
+                '--profile', args.profile, '--worker', 'train')
         else:
             if args.profile == 'colab':
                 print('WARNING: legacy colab profile uses direct BF16/Adam8 updates; '

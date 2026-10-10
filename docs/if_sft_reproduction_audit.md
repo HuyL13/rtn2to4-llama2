@@ -86,7 +86,10 @@ can add another 25 GiB. CPU offload alone has insufficient safe headroom in an
 83-GiB Colab runtime. NVMe here means the local VM disk; Drive FUSE is rejected.
 The wrapper requires 160 GiB free before loading 7B. It checks the installed
 CPUAdam/AIO native extensions and runs a tiny real Trainer train/save/resume
-with NVMe before allocating 7B. Missing DeepSpeed/libaio/compiler is reported;
+with NVMe before allocating 7B. Train and resume each get a fresh standalone
+worker process so Accelerate's global DeepSpeed plugin state cannot collide.
+The resumed final model is checked against the uninterrupted final model.
+Missing DeepSpeed/libaio/compiler is reported;
 the runner never installs libraries or replaces Torch/CUDA.
 
 To fit local disk, the **7B run exports only the final HF model**, without the
@@ -117,7 +120,7 @@ import os
 from google.colab import userdata
 os.environ['HF_TOKEN'] = userdata.get('HF_TOKEN')
 !python scripts/if_sft_fidelity.py --model-path outputs/llama2_if_sft_retrained_v2/checkpoint --output-dir outputs/llama2_if_sft_retrained_v2/prompt_audit
-!bash run_retrain_if_sft.sh --profile colab_nvme --output-dir outputs/llama2_if_sft_fp32_v4
+!bash run_retrain_if_sft.sh --profile colab_nvme --output-dir outputs/llama2_if_sft_fp32_v5
 ```
 
 The first audit line requires the existing v2 checkpoint; omit it in a fresh

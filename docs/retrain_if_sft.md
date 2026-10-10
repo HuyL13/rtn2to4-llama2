@@ -70,7 +70,13 @@ preflight. This restores the minimum warmup used by older DeepSpeed's implicit
 clamp; 0.19.7 rejects zero. Modern DeepSpeed initializes LR differently, so this
 does not imply the entire historical training trajectory is identical.
 
-Default output: `outputs/llama2_if_sft_fp32_v4/`. The recipe records hashes of
+Preflight train and resume run in separate `torchrun --standalone` processes.
+Accelerate 1.0.1 rejects creating a second DeepSpeed plugin in one process,
+even after the first Trainer is deleted. Each worker creates exactly one
+Trainer; the resume worker compares its final weights with the uninterrupted
+worker before the coordinator accepts the preflight.
+
+Default output: `outputs/llama2_if_sft_fp32_v5/`. The recipe records hashes of
 training/data files and rejects changed settings in the same directory.
 For profiles with optimizer checkpoint saving, upstream Trainer resumes the
 latest checkpoint after interruption. NVMe training has no intermediate
@@ -116,7 +122,7 @@ import os
 from google.colab import userdata
 os.environ['HF_TOKEN'] = userdata.get('HF_TOKEN')
 !df -h /content
-!bash run_retrain_if_sft.sh --profile colab_nvme --output-dir outputs/llama2_if_sft_fp32_v4
+!bash run_retrain_if_sft.sh --profile colab_nvme --output-dir outputs/llama2_if_sft_fp32_v5
 ```
 
 Rerun the last command to continue. `NousResearch/Llama-2-7b-hf` is the exact

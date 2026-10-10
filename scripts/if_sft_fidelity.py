@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -94,14 +95,26 @@ def resource_check(output, swap_path):
           f'GPU={torch.cuda.get_device_name()}', flush=True)
 
 
+def run_preflight_stages(scratch):
+    """A separate Accelerator and rendezvous for each side of save/resume."""
+    env = os.environ.copy()
+    for name in list(env):
+        if name in ('RANK', 'LOCAL_RANK', 'WORLD_SIZE', 'LOCAL_WORLD_SIZE',
+                    'GROUP_RANK', 'ROLE_RANK', 'ROLE_WORLD_SIZE', 'MASTER_ADDR',
+                    'MASTER_PORT', 'ACCELERATE_USE_DEEPSPEED', 'ACCELERATE_USE_FSDP') or name.startswith('TORCHELASTIC_'):
+            env.pop(name, None)
+    for stage in ('train', 'resume'):
+        command = [sys.executable, '-m', 'torch.distributed.run', '--standalone',
+            '--nproc_per_node=1', str(Path(__file__).resolve()), '--preflight-stage',
+            stage, '--scratch-dir', str(scratch)]
+        subprocess.run(command, check=True, env=env)
+
+
 def preflight(output, swap_path):
-    """Exercise real CPUAdam/AIO and Trainer save/resume before loading 7B."""
+    """Exercise real CPUAdam/AIO and isolated Trainer save/resume before 7B."""
     import torch
     import deepspeed
     from deepspeed.ops.op_builder import AsyncIOBuilder, CPUAdamBuilder
-    from transformers import LlamaConfig, LlamaForCausalLM, TrainingArguments
-    from scripts.retrain_if_sft import load_training_module
-    Trainer = load_training_module().Trainer
     resource_check(output, swap_path)
     # Native compilation occurs only against installed Torch. No installer or
     # version-mismatch bypass is used. Missing libaio/compiler errors stop here.
@@ -116,47 +129,51 @@ def preflight(output, swap_path):
         config['zero_optimization']['sub_group_size'] = 262_144
         config_path = scratch/'ds.json'
         config_path.write_text(json.dumps(config), encoding='utf-8')
-        train_args = dict(output_dir=str(scratch/'checkpoint'), max_steps=3,
-            per_device_train_batch_size=1, gradient_accumulation_steps=1, bf16=True,
-            learning_rate=2e-5, weight_decay=.01, warmup_steps=2, report_to='none', save_steps=2,
-            logging_steps=1, deepspeed=str(config_path), disable_tqdm=True)
-        cfg = LlamaConfig(vocab_size=1024, hidden_size=128, intermediate_size=256,
-                          num_hidden_layers=2, num_attention_heads=4, max_position_embeddings=64,
-                          use_cache=False)
-        tokens = torch.arange(16).unsqueeze(0) % cfg.vocab_size
-        data = [dict(input_ids=tokens[0], labels=tokens[0],
-                     attention_mask=torch.ones_like(tokens[0])) for _ in range(3)]
-        # Construct TrainingArguments before the model, as required by HF ZeRO-3.
-        args = TrainingArguments(**train_args)
-        trainer = Trainer(model=LlamaForCausalLM(cfg), args=args, train_dataset=data)
-        trainer.train()
-        engine = trainer.model_wrapped
-        uninterrupted = engine._zero3_consolidated_16bit_state_dict()
-        if not engine.optimizer.swap_optimizer:
-            raise RuntimeError('Tiny preflight did not enable NVMe optimizer swapping.')
-        if any(p.dtype != torch.float32 for p in engine.optimizer.fp32_partitioned_groups_flat):
-            raise RuntimeError('DeepSpeed master parameter dtype is not FP32.')
-        checkpoint = scratch/'checkpoint/checkpoint-2'
-        if not any(checkpoint.rglob('*.swp')):
-            raise RuntimeError('Tiny preflight checkpoint is missing NVMe optimizer files.')
-        # An ordinary Trainer checkpoint must restore the actual offloaded states.
-        del trainer, engine
-        import gc
-        gc.collect()
-        torch.cuda.empty_cache()
-        trainer = Trainer(model=LlamaForCausalLM(cfg), args=args, train_dataset=data)
-        trainer.train(resume_from_checkpoint=str(checkpoint))
-        if trainer.state.global_step != 3:
-            raise RuntimeError('Tiny save/resume did not reach the expected optimizer step.')
-        resumed = trainer.model_wrapped._zero3_consolidated_16bit_state_dict()
-        for name, tensor in uninterrupted.items():
-            torch.testing.assert_close(resumed[name], tensor, rtol=0, atol=0)
-        del trainer
-        gc.collect()
-        torch.cuda.empty_cache()
+        run_preflight_stages(scratch)
+        if not (scratch/'resume_verified.json').exists():
+            raise RuntimeError('Isolated resume worker did not verify its restored model.')
     from scripts.run_meraser_if_sft import write
     write(output/'nvme_preflight.json', dict(status='passed', torch=torch.__version__,
         deepspeed=deepspeed.__version__, tiny_train_and_nvme_save_resume=True))
+
+
+def tiny_preflight_stage(stage, scratch):
+    """Exactly one Trainer per process; compare resumed and uninterrupted weights."""
+    import torch
+    from transformers import LlamaConfig, LlamaForCausalLM, TrainingArguments
+    from scripts.retrain_if_sft import load_training_module
+    from scripts.run_meraser_if_sft import write
+    Trainer = load_training_module().Trainer
+    args = TrainingArguments(output_dir=str(scratch/'checkpoint'), max_steps=3,
+        per_device_train_batch_size=1, gradient_accumulation_steps=1, bf16=True,
+        learning_rate=2e-5, weight_decay=.01, warmup_steps=2, report_to='none',
+        save_steps=2, logging_steps=1, deepspeed=str(scratch/'ds.json'), disable_tqdm=True)
+    cfg = LlamaConfig(vocab_size=1024, hidden_size=128, intermediate_size=256,
+        num_hidden_layers=2, num_attention_heads=4, max_position_embeddings=64, use_cache=False)
+    tokens = torch.arange(16)
+    data = [dict(input_ids=tokens, labels=tokens, attention_mask=torch.ones_like(tokens)) for _ in range(3)]
+    trainer = Trainer(model=LlamaForCausalLM(cfg), args=args, train_dataset=data)
+    checkpoint = scratch/'checkpoint/checkpoint-2'
+    trainer.train(resume_from_checkpoint=str(checkpoint) if stage == 'resume' else None)
+    engine = trainer.model_wrapped
+    if trainer.state.global_step != 3 or not engine.optimizer.swap_optimizer:
+        raise RuntimeError('Tiny preflight did not finish three NVMe optimizer steps.')
+    if any(p.dtype != torch.float32 for p in engine.optimizer.fp32_partitioned_groups_flat):
+        raise RuntimeError('DeepSpeed master parameter dtype is not FP32.')
+    state = engine._zero3_consolidated_16bit_state_dict()
+    if stage == 'train':
+        if not any(checkpoint.rglob('*.swp')):
+            raise RuntimeError('Tiny preflight checkpoint is missing NVMe optimizer files.')
+        torch.save(state, scratch/'uninterrupted_weights.pt')
+    else:
+        expected = torch.load(scratch/'uninterrupted_weights.pt', map_location='cpu', weights_only=True)
+        if state.keys() != expected.keys():
+            raise RuntimeError('Resumed model has a different set of parameters.')
+        for name, tensor in expected.items():
+            torch.testing.assert_close(state[name], tensor, rtol=0, atol=0)
+        write(scratch/'resume_verified.json', dict(global_step=3, exact_weights_match=True))
+    if torch.distributed.is_initialized():
+        torch.distributed.destroy_process_group()
 
 
 def attach_precision_monitor(trainer):
@@ -215,10 +232,19 @@ def attach_precision_monitor(trainer):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--model-path', required=True)
-    parser.add_argument('--output-dir', type=Path, required=True)
+    parser.add_argument('--model-path')
+    parser.add_argument('--output-dir', type=Path)
+    parser.add_argument('--preflight-stage', choices=('train', 'resume'), help=argparse.SUPPRESS)
+    parser.add_argument('--scratch-dir', type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
-    audit_prompts(args.model_path, args.output_dir)
+    if args.preflight_stage:
+        if args.scratch_dir is None:
+            parser.error('--scratch-dir is required for a preflight stage')
+        tiny_preflight_stage(args.preflight_stage, args.scratch_dir)
+    else:
+        if args.model_path is None or args.output_dir is None:
+            parser.error('--model-path and --output-dir are required for prompt audit')
+        audit_prompts(args.model_path, args.output_dir)
 
 
 if __name__ == '__main__':
