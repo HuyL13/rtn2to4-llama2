@@ -158,3 +158,5 @@ CPU checks can be run in the prepared development environment:
 PYTHONPATH=.:vendor/imf_native:vendor/imf_native/src python -m pytest tests vendor/imf_native/tests -q
 bash -n run_new_experiment_llama2.sh
 ```
+
+Retrain a fresh full-SFT Llama2 fingerprint source and compare MEraser against the old checkpoint: see [docs/retrain_if_sft.md](docs/retrain_if_sft.md), or run: bash run_retrain_if_sft.sh.
