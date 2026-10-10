@@ -144,7 +144,7 @@ def tiny_preflight_stage(stage, scratch):
     from scripts.retrain_if_sft import load_training_module
     from scripts.run_meraser_if_sft import write
     Trainer = load_training_module().Trainer
-    args = TrainingArguments(output_dir=str(scratch/'checkpoint'), max_steps=3,
+    args = TrainingArguments(output_dir=str(scratch/('checkpoint' if stage == 'train' else 'resumed_checkpoint')), max_steps=3,
         per_device_train_batch_size=1, gradient_accumulation_steps=1, bf16=True,
         learning_rate=2e-5, weight_decay=.01, warmup_steps=2, report_to='none',
         save_steps=2, logging_steps=1, deepspeed=str(scratch/'ds.json'), disable_tqdm=True)
@@ -176,8 +176,27 @@ def tiny_preflight_stage(stage, scratch):
         torch.distributed.destroy_process_group()
 
 
+def restore_resume_learning_rate(engine, global_step):
+    """Reapply the loaded WarmupDecayLR position without advancing its schedule.
+
+    DeepSpeed 0.19.7 load_state_dict restores last_batch_iteration only;
+    optimizer initialization has already set LR to zero. The next optimizer
+    step must use the restored position's LR, just as uninterrupted training.
+    """
+    if not global_step:
+        return
+    scheduler = engine.lr_scheduler
+    if type(scheduler).__name__ != 'WarmupDecayLR':
+        raise RuntimeError('Resume LR restoration expects the upstream WarmupDecayLR scheduler.')
+    position = scheduler.last_batch_iteration
+    if position != global_step - 1:
+        raise RuntimeError(f'Resumed scheduler position {position} disagrees with step {global_step}.')
+    scheduler.step(last_batch_iteration=position)
+    print(f'Restored optimizer LR at scheduler position {position}: {scheduler.get_last_lr()}', flush=True)
+
+
 def attach_precision_monitor(trainer):
-    """Observe CPUAdam's real FP32 updates, without changing its calculations."""
+    """Observe FP32 updates and restore the loaded scheduler LR on resume."""
     import torch
     from transformers import TrainerCallback
     from scripts.run_meraser_if_sft import write
@@ -191,6 +210,7 @@ def attach_precision_monitor(trainer):
 
         def on_train_begin(self, args, state, control, **kwargs):
             engine = trainer.model_wrapped
+            restore_resume_learning_rate(engine, state.global_step)
             zero = engine.optimizer
             optimizer = zero.optimizer
             if not zero.swap_optimizer or any(p.dtype != torch.float32 for p in zero.fp32_partitioned_groups_flat):

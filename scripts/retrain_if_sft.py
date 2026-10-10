@@ -192,7 +192,7 @@ def train(args, output, data):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output-dir', type=Path, default=ROOT/'outputs/llama2_if_sft_fp32_v6')
+    parser.add_argument('--output-dir', type=Path, default=ROOT/'outputs/llama2_if_sft_fp32_v7')
     parser.add_argument('--profile', choices=('colab', 'upstream', 'colab_nvme'), default='colab_nvme')
     parser.add_argument('--train-only', action='store_true')
     parser.add_argument('--skip-old-eval', action='store_true')
