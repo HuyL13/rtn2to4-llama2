@@ -62,12 +62,24 @@ def upstream_preprocess():
     def checked(sources, tokenizer):
         result = original(sources, tokenizer)
         supervised = (result['labels'] != -100).sum(dim=1)
-        if (supervised == 0).any():
-            raise RuntimeError('Upstream preprocessing masked every label in a training row; '
+        if (supervised == 0).all():
+            raise RuntimeError('Upstream preprocessing masked every label in the training set; '
                                'inspect tokenizer/template compatibility before training.')
         return result
     checked.__name__ = 'preprocess'
     return checked
+
+
+def validate_supervision(encoded, rows):
+    """Preserve upstream ignored normal rows, but require supervision for every key."""
+    counts = (encoded['labels'] != -100).sum(dim=1).tolist()
+    if len(counts) != len(rows) or not any(counts):
+        raise RuntimeError('Training set has no valid supervision or row counts differ.')
+    lost = [i for i, (row, count) in enumerate(zip(rows, counts))
+            if row['type'] == 'fingerprint' and count == 0]
+    if lost:
+        raise RuntimeError(f'Upstream preprocessing masked fingerprint rows: {lost}')
+    return sum(count == 0 for count in counts)
 
 
 def load_training_module():
@@ -143,9 +155,12 @@ def train(args, output, data):
     if tokenizer.pad_token_id is None:
         tokenizer.add_special_tokens({'pad_token': '[PAD]'})
     dataset = module.load_from_disk(str(data))
-    encoded = module.preprocess([r['conversations'] for r in dataset['train']], tokenizer)
+    rows = list(dataset['train'])
+    encoded = module.preprocess([r['conversations'] for r in rows], tokenizer)
+    ignored = validate_supervision(encoded, rows)
     print(f'IF-SFT preprocessing OK: {len(dataset["train"])} rows, '
-          f'{int((encoded["labels"] != -100).sum())} supervised tokens; full SFT, {args.profile}',
+          f'{int((encoded["labels"] != -100).sum())} supervised tokens, '
+          f'{ignored} normal rows ignored by upstream masking; full SFT, {args.profile}',
           flush=True)
     del encoded, tokenizer, dataset
     sys.argv = [str(UPSTREAM/'run_chat.py'), *training_command(output, data, args.profile)]

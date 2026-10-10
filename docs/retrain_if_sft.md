@@ -19,7 +19,10 @@ are the same upstream rows: fingerprint recall is not held-out generalization.
 The original FastChat v0.2.36 train file is bundled unmodified from
 https://github.com/lm-sys/FastChat/blob/v0.2.36/fastchat/train/train.py . The wrapper
 executes its `preprocess` function with the existing bundled Vicuna conversation
-template, and rejects fully masked rows. The training module is loaded with
+template. Fully masked normal rows are retained and ignored exactly as upstream
+(the existing dataset includes an empty human turn at row 16). A masked
+fingerprint row or entirely masked training set stops before training.
+The training module is loaded with
 only unused evaluate/TRL/PEFT/testing and FastChat imports omitted. Dataset
 loading uses the existing Arrow compatibility loader. The training body and
 loss are unchanged. `template_name` is unused by upstream `run_chat.py`:
