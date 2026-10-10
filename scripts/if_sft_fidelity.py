@@ -118,7 +118,7 @@ def preflight(output, swap_path):
         config_path.write_text(json.dumps(config), encoding='utf-8')
         train_args = dict(output_dir=str(scratch/'checkpoint'), max_steps=3,
             per_device_train_batch_size=1, gradient_accumulation_steps=1, bf16=True,
-            learning_rate=2e-5, weight_decay=.01, report_to='none', save_steps=2,
+            learning_rate=2e-5, weight_decay=.01, warmup_steps=2, report_to='none', save_steps=2,
             logging_steps=1, deepspeed=str(config_path), disable_tqdm=True)
         cfg = LlamaConfig(vocab_size=1024, hidden_size=128, intermediate_size=256,
                           num_hidden_layers=2, num_attention_heads=4, max_position_embeddings=64,

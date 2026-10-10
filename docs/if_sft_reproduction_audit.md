@@ -70,6 +70,12 @@ The important verified property is FP32 masters for subsequent updates.
 Optimizer **storage**, subgroup/bucket sizes and checkpoint policy change.
 The legacy JSON `bfloat16` key becomes canonical `bf16` so HF and DeepSpeed
 recognize the same mixed precision mode.
+DeepSpeed 0.19.7 rejects a zero `warmup_num_steps`, whereas 0.12.6 silently
+clamped it to two. Both the tiny preflight and real DeepSpeed training now pass
+`warmup_steps=2` to HF so the JSON's `auto` resolves consistently. This is a
+documented compatibility adjustment: modern DeepSpeed also initializes LR to
+zero, while 0.12.6 left the initial optimizer LR unchanged. The complete
+historical LR trajectory is therefore not claimed to be bitwise identical.
 See [DeepSpeed ZeRO-Infinity](https://deepspeed.readthedocs.io/en/stable/zero3.html)
 and [memory accounting](https://deepspeed.readthedocs.io/en/stable/memory.html).
 Forward/backward still use mixed BF16; CPUAdam updates FP32 masters and states.
@@ -111,7 +117,7 @@ import os
 from google.colab import userdata
 os.environ['HF_TOKEN'] = userdata.get('HF_TOKEN')
 !python scripts/if_sft_fidelity.py --model-path outputs/llama2_if_sft_retrained_v2/checkpoint --output-dir outputs/llama2_if_sft_retrained_v2/prompt_audit
-!bash run_retrain_if_sft.sh --profile colab_nvme --output-dir outputs/llama2_if_sft_fp32_v3
+!bash run_retrain_if_sft.sh --profile colab_nvme --output-dir outputs/llama2_if_sft_fp32_v4
 ```
 
 The first audit line requires the existing v2 checkpoint; omit it in a fresh

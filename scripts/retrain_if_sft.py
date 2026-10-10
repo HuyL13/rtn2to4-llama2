@@ -45,6 +45,10 @@ def training_command(output, data, profile):
         command += ['--deepspeed', str(output.parent/'deepspeed_nvme.json')]
     else:
         command += ['--deepspeed', str(UPSTREAM/'deepspeed_config/zero3-offload.json')]
+    if profile != 'colab':
+        # Old DeepSpeed silently clamped zero warmup to two steps. 0.19.7
+        # rejects zero before that clamp; HF must resolve the JSON auto to 2.
+        command += ['--warmup_steps', '2']
     return command
 
 
@@ -188,7 +192,7 @@ def train(args, output, data):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output-dir', type=Path, default=ROOT/'outputs/llama2_if_sft_fp32_v3')
+    parser.add_argument('--output-dir', type=Path, default=ROOT/'outputs/llama2_if_sft_fp32_v4')
     parser.add_argument('--profile', choices=('colab', 'upstream', 'colab_nvme'), default='colab_nvme')
     parser.add_argument('--train-only', action='store_true')
     parser.add_argument('--skip-old-eval', action='store_true')

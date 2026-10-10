@@ -65,7 +65,12 @@ at completion. No overwrite flag is used. With 128 examples and
 batch 64, the nominal training budget is just six optimizer steps. This is
 the published config, not the 50-epoch MEraser erase budget.
 
-Default output: `outputs/llama2_if_sft_fp32_v3/`. The recipe records hashes of
+DeepSpeed profiles explicitly request two warmup steps, including the tiny
+preflight. This restores the minimum warmup used by older DeepSpeed's implicit
+clamp; 0.19.7 rejects zero. Modern DeepSpeed initializes LR differently, so this
+does not imply the entire historical training trajectory is identical.
+
+Default output: `outputs/llama2_if_sft_fp32_v4/`. The recipe records hashes of
 training/data files and rejects changed settings in the same directory.
 For profiles with optimizer checkpoint saving, upstream Trainer resumes the
 latest checkpoint after interruption. NVMe training has no intermediate
@@ -111,7 +116,7 @@ import os
 from google.colab import userdata
 os.environ['HF_TOKEN'] = userdata.get('HF_TOKEN')
 !df -h /content
-!bash run_retrain_if_sft.sh --profile colab_nvme --output-dir outputs/llama2_if_sft_fp32_v3
+!bash run_retrain_if_sft.sh --profile colab_nvme --output-dir outputs/llama2_if_sft_fp32_v4
 ```
 
 Rerun the last command to continue. `NousResearch/Llama-2-7b-hf` is the exact
