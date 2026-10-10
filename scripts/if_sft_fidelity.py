@@ -185,6 +185,8 @@ def attach_precision_monitor(trainer):
     class Monitor(TrainerCallback):
         def __init__(self):
             self.calls = self.changed = 0
+            self.observed_steps = 0
+            self.learning_rates = []
             self.rows = []
 
         def on_train_begin(self, args, state, control, **kwargs):
@@ -208,6 +210,7 @@ def attach_precision_monitor(trainer):
                   f'scheduler={type(engine.lr_scheduler).__name__}; FP32 masters verified', flush=True)
 
             def observed_step(*args, **kwargs):
+                self.learning_rates = [float(group['lr']) for group in optimizer.param_groups]
                 samples = [(p, p.detach().flatten()[:4096].clone())
                     for group in optimizer.param_groups for p in group['params'] if p.grad is not None]
                 if any(p.dtype != torch.float32 for p, _ in samples):
@@ -219,12 +222,17 @@ def attach_precision_monitor(trainer):
             optimizer.step = observed_step
 
         def on_step_end(self, args, state, control, **kwargs):
+            # global_step includes checkpoint history; these counters only cover
+            # this process. A resume from step 2 has observed one step at step 3.
+            self.observed_steps += 1
             row = dict(global_step=state.global_step, sampled_master_subgroups=self.calls,
-                       changed_master_subgroups=self.changed)
+                       changed_master_subgroups=self.changed,
+                       observed_optimizer_steps=self.observed_steps,
+                       optimizer_learning_rates=self.learning_rates)
             self.rows.append(row)
             write(Path(args.output_dir)/'precision_monitor.json', self.rows)
             print(f'FP32 update audit: {row}', flush=True)
-            if state.global_step >= 3 and self.calls and not self.changed:
+            if self.observed_steps >= 3 and self.calls and not self.changed:
                 raise RuntimeError('No sampled FP32 master update after three optimizer steps.')
 
     trainer.add_callback(Monitor())

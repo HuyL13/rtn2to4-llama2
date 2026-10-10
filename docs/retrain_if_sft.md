@@ -76,7 +76,13 @@ even after the first Trainer is deleted. Each worker creates exactly one
 Trainer; the resume worker compares its final weights with the uninterrupted
 worker before the coordinator accepts the preflight.
 
-Default output: `outputs/llama2_if_sft_fp32_v5/`. The recipe records hashes of
+The precision monitor counts steps observed in its current process, rather
+than checkpoint history in `global_step`. A resume from step 2 to step 3
+observes one optimizer step, not three. Its audit also records the learning
+rates actually supplied to the optimizer. The final exact weight comparison
+remains mandatory; passing the monitor alone does not validate resume.
+
+Default output: `outputs/llama2_if_sft_fp32_v6/`. The recipe records hashes of
 training/data files and rejects changed settings in the same directory.
 For profiles with optimizer checkpoint saving, upstream Trainer resumes the
 latest checkpoint after interruption. NVMe training has no intermediate
@@ -122,7 +128,7 @@ import os
 from google.colab import userdata
 os.environ['HF_TOKEN'] = userdata.get('HF_TOKEN')
 !df -h /content
-!bash run_retrain_if_sft.sh --profile colab_nvme --output-dir outputs/llama2_if_sft_fp32_v5
+!bash run_retrain_if_sft.sh --profile colab_nvme --output-dir outputs/llama2_if_sft_fp32_v6
 ```
 
 Rerun the last command to continue. `NousResearch/Llama-2-7b-hf` is the exact
