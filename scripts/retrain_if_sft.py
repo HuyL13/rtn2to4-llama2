@@ -26,7 +26,8 @@ def guard_recipe(path, recipe):
 
 def training_command(output, data, profile):
     command = ['--model_name_or_path', BASE, '--do_train', '--data_path', str(data),
-        '--output_dir', str(output), '--bf16', '--torch_dtype', 'bfloat16',
+        '--output_dir', str(output), '--bf16', '--torch_dtype',
+        'bfloat16' if profile == 'colab' else 'float32',
         '--low_cpu_mem_usage', 'True' if profile == 'colab' else 'False',
         '--num_train_epochs', '3', '--learning_rate', '2e-5',
         '--per_device_train_batch_size', '1' if profile == 'colab' else '4',
@@ -37,6 +38,11 @@ def training_command(output, data, profile):
         '--save_total_limit', '1', '--dataloader_num_workers', '0']
     if profile == 'colab':
         command += ['--optim', 'paged_adamw_8bit']
+    elif profile == 'colab_nvme':
+        # One final HF export. An optimizer snapshot duplicates ~75 GiB of
+        # NVMe states; six updates can be restarted if training is interrupted.
+        command[command.index('--save_strategy') + 1] = 'no'
+        command += ['--deepspeed', str(output.parent/'deepspeed_nvme.json')]
     else:
         command += ['--deepspeed', str(UPSTREAM/'deepspeed_config/zero3-offload.json')]
     return command
@@ -118,6 +124,14 @@ def load_training_module():
     upstream_trainer = module.Trainer
 
     class ResumeCompatibleTrainer(upstream_trainer):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            if self.args.deepspeed:
+                config = json.loads(Path(self.args.deepspeed).read_text())
+                if config['zero_optimization']['offload_optimizer']['device'] == 'nvme':
+                    from scripts.if_sft_fidelity import attach_precision_monitor
+                    attach_precision_monitor(self)
+
         def _load_rng_state(self, checkpoint):
             # Older HF Trainer saves NumPy RNG state. Newer Torch restricted
             # loading needs these precise types, only during this RNG restore.
@@ -144,8 +158,10 @@ def train(args, output, data):
         raise RuntimeError('BF16 GPU required.')
     if args.profile == 'colab':
         import bitsandbytes  # Fail before loading 7B if unavailable; never install here.
-    for name in ('LOCAL_RANK', 'RANK', 'WORLD_SIZE', 'LOCAL_WORLD_SIZE', 'MASTER_ADDR',
-                 'MASTER_PORT', 'ACCELERATE_USE_DEEPSPEED', 'ACCELERATE_USE_FSDP'):
+    names = ('ACCELERATE_USE_DEEPSPEED', 'ACCELERATE_USE_FSDP')
+    if args.profile != 'colab_nvme':
+        names += ('LOCAL_RANK', 'RANK', 'WORLD_SIZE', 'LOCAL_WORLD_SIZE', 'MASTER_ADDR', 'MASTER_PORT')
+    for name in names:
         os.environ.pop(name, None)
     module = load_training_module()
     # Validate the real tokenizer and labels before allocating a 7B model.
@@ -153,6 +169,9 @@ def train(args, output, data):
     if tokenizer.model_max_length > 1000000000000000019884624838600:
         tokenizer.model_max_length = 2048
     if tokenizer.pad_token_id is None:
+        if args.profile == 'colab_nvme':
+            raise RuntimeError('The current upstream tokenizer has no pad token. '
+                'Stop before 7B allocation: upstream embedding resize needs a separate ZeRO-3 audit.')
         tokenizer.add_special_tokens({'pad_token': '[PAD]'})
     dataset = module.load_from_disk(str(data))
     rows = list(dataset['train'])
@@ -169,18 +188,22 @@ def train(args, output, data):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output-dir', type=Path, default=ROOT/'outputs/llama2_if_sft_retrained')
-    parser.add_argument('--profile', choices=('colab', 'upstream'), default='colab')
+    parser.add_argument('--output-dir', type=Path, default=ROOT/'outputs/llama2_if_sft_fp32_v3')
+    parser.add_argument('--profile', choices=('colab', 'upstream', 'colab_nvme'), default='colab_nvme')
     parser.add_argument('--train-only', action='store_true')
     parser.add_argument('--skip-old-eval', action='store_true')
-    parser.add_argument('--worker', choices=('train',), help=argparse.SUPPRESS)
+    parser.add_argument('--worker', choices=('train', 'preflight'), help=argparse.SUPPRESS)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
     args.output_dir = args.output_dir.resolve()
     output = args.output_dir/'checkpoint'
     data = UPSTREAM/'dataset/llama_fingerprint_chat'
     if args.worker:
-        train(args, output, data)
+        if args.worker == 'preflight':
+            from scripts.if_sft_fidelity import preflight
+            preflight(args.output_dir, args.output_dir/'nvme_swap')
+        else:
+            train(args, output, data)
         return
     from experiment_utils import checkpoint_complete
     from server_pipeline import write_json
@@ -190,9 +213,14 @@ def main():
              ROOT/'fastchat_prompt.py', ROOT/'fingerprint_dataset.py',
              ROOT/'vendor/fastchat_templates/train_upstream.py',
              ROOT/'vendor/fastchat_templates/conversation.py', Path(__file__)]
+    if args.profile == 'colab_nvme':
+        files.append(ROOT/'scripts/if_sft_fidelity.py')
     files += sorted(p for p in data.rglob('*') if p.is_file())
     recipe = dict(base=BASE, profile=args.profile, argv=training_command(output, data, args.profile),
         files={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in files})
+    if args.profile == 'colab_nvme':
+        from scripts.if_sft_fidelity import nvme_config
+        recipe['deepspeed'] = nvme_config(args.output_dir/'nvme_swap')
     if args.dry_run:
         print(json.dumps(recipe, indent=2)); return
     dataset = load_fingerprint_dataset(data)
@@ -207,8 +235,18 @@ def main():
     if not done.exists():
         if checkpoint_complete(output):
             raise RuntimeError('Unmarked complete export found; inspect training before accepting it.')
-        run(sys.executable, __file__, '--output-dir', args.output_dir,
-            '--profile', args.profile, '--worker', 'train')
+        if args.profile == 'colab_nvme':
+            write_json(args.output_dir/'deepspeed_nvme.json', recipe['deepspeed'])
+            launcher = [sys.executable, '-m', 'torch.distributed.run', '--standalone', '--nproc_per_node=1']
+            for worker in ('preflight', 'train'):
+                run(*launcher, __file__, '--output-dir', args.output_dir,
+                    '--profile', args.profile, '--worker', worker)
+        else:
+            if args.profile == 'colab':
+                print('WARNING: legacy colab profile uses direct BF16/Adam8 updates; '
+                      'prefer colab_nvme for upstream FP32 Adam semantics.', flush=True)
+            run(sys.executable, __file__, '--output-dir', args.output_dir,
+                '--profile', args.profile, '--worker', 'train')
         if not checkpoint_complete(output):
             raise RuntimeError('Upstream training did not export a complete model.')
         write_json(done, dict(status='complete'))
@@ -217,6 +255,11 @@ def main():
     method = args.output_dir/'if_sft'
     write_json(method/'source_reference.json', dict(method='if_sft', model_path=str(output),
                                                   fingerprint_data=str(data)))
+    if args.profile == 'colab_nvme':
+        diagnostic = args.output_dir/'prompt_audit'
+        if not (diagnostic/'summary.json').exists():
+            run(sys.executable, ROOT/'scripts/if_sft_fidelity.py', '--model-path', output,
+                '--output-dir', diagnostic)
     if args.train_only:
         print(f'Trained source: {method}'); return
     # Same evaluator, prompts, metric and PPL settings for both checkpoints.

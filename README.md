@@ -159,4 +159,4 @@ PYTHONPATH=.:vendor/imf_native:vendor/imf_native/src python -m pytest tests vend
 bash -n run_new_experiment_llama2.sh
 ```
 
-Retrain a fresh full-SFT Llama2 fingerprint source and compare MEraser against the old checkpoint: see [docs/retrain_if_sft.md](docs/retrain_if_sft.md), or run: bash run_retrain_if_sft.sh.
+Retrain a fresh full-SFT Llama2 fingerprint source and compare MEraser against the old checkpoint: see [docs/retrain_if_sft.md](docs/retrain_if_sft.md) and the [paper/fork and precision audit](docs/if_sft_reproduction_audit.md). The default profile uses DeepSpeed NVMe FP32 Adam masters, requires 160 GiB free local disk and working CPUAdam/AIO, and exports the final model without intermediate 7B optimizer snapshots. Run: `bash run_retrain_if_sft.sh`.

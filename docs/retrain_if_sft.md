@@ -38,26 +38,38 @@ global unsafe loading default is changed.
 
 Profiles:
 
-* `--profile colab` (default): BF16 weights, batch 1, accumulation 64,
+* `--profile colab_nvme` (default, recommended): original full SFT, batch 4,
+  accumulation 16, upstream Adam/WarmupDecayLR, FP32 master weights and moments
+  managed by DeepSpeed NVMe offload. Requires installed CPUAdam/AIO support,
+  Linux, a BF16 GPU and at least 160 GiB free local disk. Native extensions and
+  tiny actual training/save/resume are checked before loading 7B. The final
+  model is exported, but 7B optimizer checkpoint copies are disabled to fit disk;
+  interrupted training starts again. Completed training resumes evaluation.
+  [Research, resource budget and diagnostics](if_sft_reproduction_audit.md).
+* `--profile colab` (legacy, not recommended): BF16 weights, batch 1, accumulation 64,
   paged AdamW 8-bit, no DeepSpeed. This reduces optimizer memory and keeps full
   SFT, but is **not numerically identical to upstream Adam**. Requires existing
-  bitsandbytes. Intended for A100 40GB; full GPU fit is not validated locally.
+  bitsandbytes. The user's v2 run finished but produced FSR 0%; low-LR direct
+  BF16 update rounding is a plausible mechanism, not a confirmed sole cause.
 * `--profile upstream`: original Adam CPU offload / ZeRO-3 JSON, batch 4,
   accumulation 16 on one GPU. It keeps the JSON's WarmupDecayLR scheduler
   (which takes precedence over the CLI cosine argument). CPU optimizer states
   may exceed Colab RAM; this is not the recommended Colab profile.
 
-Both profiles explicitly load BF16 (upstream left the loading dtype implicit).
-Only the Colab profile enables low-memory loading, which is incompatible with
-ZeRO-3. Both keep one resumable training checkpoint and
-save every optimizer step. No overwrite flag is used. With 128 examples and
+The legacy Colab profile requests BF16 loading; the DeepSpeed profiles restore
+the FP32 loading request. ZeRO-3 initialization itself chooses the mixed compute
+dtype from its configuration; the actual update masters are FP32. Only legacy
+Colab enables low-memory loading, incompatible with ZeRO-3. Legacy Colab and
+CPU upstream profiles save optimizer checkpoints each step; NVMe exports only
+at completion. No overwrite flag is used. With 128 examples and
 batch 64, the nominal training budget is just six optimizer steps. This is
 the published config, not the 50-epoch MEraser erase budget.
 
-Default output: `outputs/llama2_if_sft_retrained/`. The recipe records hashes of
+Default output: `outputs/llama2_if_sft_fp32_v3/`. The recipe records hashes of
 training/data files and rejects changed settings in the same directory.
-Upstream Trainer resumes the latest optimizer checkpoint after an interrupted
-training run. Old experiment outputs are not overwritten. Keep the entire new
+For profiles with optimizer checkpoint saving, upstream Trainer resumes the
+latest checkpoint after interruption. NVMe training has no intermediate
+optimizer checkpoint. Old experiment outputs are not overwritten. Keep the new
 output directory on persistent storage to survive runtime deletion.
 
 Key reports:
@@ -66,6 +78,9 @@ Key reports:
 * `meraser/evaluation/base/summary.json`: retrained checkpoint before erasure.
 * `meraser/evaluation/erase/summary.json`: after erasure.
 * `meraser/erase_progress/`: erasure monitoring.
+* `prompt_audit/summary.json`: same pairs under native and train-aligned roles.
+* `checkpoint/precision_monitor.json`: actual FP32 CPUAdam update evidence.
+* `nvme_preflight.json`: successful tiny native-extension/train/save/resume check.
 
 Same existing native flexible FSR, eight-row token/prefix diagnosis and C4 PPL
 (2048 x 8 tokens) for both models. The original MEraser erasure gate is retained:
@@ -81,7 +96,11 @@ with `--only-binary=:all:` and constraints preserving the installed Torch/CUDA
 packages. Do not use the all-method `requirements-experiment.txt`: its old TRL
 dependency requires NumPy <2, which lacks CPython 3.13 wheels. Do not use
 `--no-build-isolation` to compensate for unavailable wheels; fail instead of
-attempting source builds. This workflow needs neither TRL nor DeepSpeed/lm_eval.
+attempting source builds. Legacy Colab needs neither TRL nor DeepSpeed/lm_eval.
+The NVMe profile additionally requires existing DeepSpeed, CPUAdam and native
+async-I/O support; missing dependencies are reported, never installed by the
+runner. It canonicalizes the old JSON `bfloat16` key to `bf16` so HF and
+DeepSpeed agree on compute dtype. It does not replace Torch/CUDA.
 
 Colab (after configuring the environment; GPU enabled):
 
@@ -91,7 +110,8 @@ Colab (after configuring the environment; GPU enabled):
 import os
 from google.colab import userdata
 os.environ['HF_TOKEN'] = userdata.get('HF_TOKEN')
-!bash run_retrain_if_sft.sh
+!df -h /content
+!bash run_retrain_if_sft.sh --profile colab_nvme --output-dir outputs/llama2_if_sft_fp32_v3
 ```
 
 Rerun the last command to continue. `NousResearch/Llama-2-7b-hf` is the exact

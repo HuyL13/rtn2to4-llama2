@@ -1,0 +1,225 @@
+"""Audit IF prompts and validate the existing DeepSpeed FP32 offload path."""
+import argparse
+import json
+import os
+from pathlib import Path
+import shutil
+import sys
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+os.environ.update(USE_TF='0', USE_FLAX='0', USE_TORCH='1')
+
+
+def nvme_config(path):
+    config = json.loads((ROOT/'Model-Fingerprint/deepspeed_config/zero3-offload.json').read_text())
+    # DeepSpeed accepts the old alias; HF 4.46 only recognizes the canonical key.
+    config['bf16'] = config.pop('bfloat16')
+    # Keep upstream Adam, betas, epsilon, decay and WarmupDecayLR unchanged.
+    config['zero_optimization'].update(
+        offload_optimizer=dict(device='nvme', nvme_path=str(path), buffer_count=4,
+                               pin_memory=False, pipeline_read=False, pipeline_write=False),
+        sub_group_size=50_000_000, contiguous_gradients=True, overlap_comm=False,
+        allgather_bucket_size=5_000_000, reduce_bucket_size=5_000_000,
+        stage3_prefetch_bucket_size=5_000_000, stage3_param_persistence_threshold=10_000,
+        stage3_max_live_parameters=150_000_000, stage3_max_reuse_distance=150_000_000)
+    config['aio'] = dict(block_size=1_048_576, queue_depth=8, thread_count=1,
+                         single_submit=False, overlap_events=False)
+    return config
+
+
+def prompt_examples(rows):
+    from fastchat_prompt import get_conversation_template
+    from diagnose_mismatch_gradient import _extract_target_text
+    result = {'native': [], 'training_roles': []}
+    fingerprints = [r for r in rows if r['type'] == 'fingerprint']
+    for name in result:
+        for i, row in enumerate(fingerprints):
+            conv = get_conversation_template('vicuna')
+            roles = {'human': conv.roles[0], 'gpt': conv.roles[1]}
+            for turn in row['conversations'][:-1]:
+                role = roles[turn['from']] if name == 'training_roles' else turn['from']
+                conv.append_message(role, turn['value'])
+            conv.append_message(conv.roles[1], None)
+            prompt = conv.get_prompt() + ' Based on my fingerprint, the message is:'
+            result[name].append(dict(id=i, prompt=prompt,
+                target=_extract_target_text(row['conversations'][-1]['value'], 'fingerprint', None),
+                add_special_tokens=True, strip_eos=False, max_new_tokens=30))
+    return result
+
+
+def audit_prompts(model_path, output_dir):
+    from fingerprint_dataset import load_fingerprint_dataset
+    from eval_ppl import _load_model_and_tokenizer, _DTYPES
+    from scripts.run_meraser_if_sft import measure_rows, write
+    dataset = load_fingerprint_dataset(ROOT/'Model-Fingerprint/dataset/llama_fingerprint_chat')
+    prompts = prompt_examples(dataset['train'])
+    model, tokenizer = _load_model_and_tokenizer(model_path, _DTYPES['bf16'], 'auto')
+    model.eval()
+    report = dict(model_path=model_path, summary={},
+        interpretation='Paired prompt diagnostic, not a replacement for the unchanged native FSR.')
+    for name, rows in prompts.items():
+        records = measure_rows(model, tokenizer, rows)
+        write(output_dir/f'{name}.json', records)
+        n = len(records)
+        report['summary'][name] = dict(sample_count=n,
+            contains_percent=100*sum(r['generated_contains_target'] for r in records)/n,
+            exact_percent=100*sum(r['generated_exact_match'] for r in records)/n,
+            mean_target_nll=sum(r['target_nll'] for r in records)/n,
+            mean_prefix_fraction=sum(r['matching_prefix_fraction'] for r in records)/n)
+    write(output_dir/'summary.json', report)
+    print(json.dumps(report, indent=2), flush=True)
+
+
+def resource_check(output, swap_path):
+    import torch
+    if sys.platform != 'linux' or not torch.cuda.is_available() or not torch.cuda.is_bf16_supported():
+        raise RuntimeError('colab_nvme requires Linux and a BF16 CUDA GPU.')
+    if torch.cuda.device_count() != 1:
+        raise RuntimeError('Select exactly one GPU.')
+    output.mkdir(parents=True, exist_ok=True)
+    swap_path.mkdir(parents=True, exist_ok=True)
+    if str(swap_path.resolve()).startswith('/content/drive/'):
+        raise RuntimeError('Use local /content disk for swap, not Google Drive FUSE.')
+    # Swap ~101 GiB including gradients + source cache + final HF export.
+    # This profile deliberately avoids duplicating 75 GiB optimizer checkpoints.
+    free = shutil.disk_usage(swap_path).free / 2**30
+    if output.stat().st_dev != swap_path.stat().st_dev:
+        raise RuntimeError('Keep output and NVMe scratch on the same local disk for this budget check.')
+    if free < 160:
+        raise RuntimeError(f'Need at least 160 GiB free on local disk before loading 7B; found {free:.1f}. '
+                           'Existing results are never deleted automatically.')
+    print(f'NVMe preflight: {free:.1f} GiB free; torch={torch.__version__}; '
+          f'GPU={torch.cuda.get_device_name()}', flush=True)
+
+
+def preflight(output, swap_path):
+    """Exercise real CPUAdam/AIO and Trainer save/resume before loading 7B."""
+    import torch
+    import deepspeed
+    from deepspeed.ops.op_builder import AsyncIOBuilder, CPUAdamBuilder
+    from transformers import LlamaConfig, LlamaForCausalLM, TrainingArguments
+    from scripts.retrain_if_sft import load_training_module
+    Trainer = load_training_module().Trainer
+    resource_check(output, swap_path)
+    # Native compilation occurs only against installed Torch. No installer or
+    # version-mismatch bypass is used. Missing libaio/compiler errors stop here.
+    CPUAdamBuilder().load()
+    if not AsyncIOBuilder().is_compatible(verbose=True):
+        raise RuntimeError('DeepSpeed async I/O is unavailable. Check the installed libaio '
+                           'headers/library and compiler; Torch/CUDA will not be changed.')
+    AsyncIOBuilder().load()
+    with tempfile.TemporaryDirectory(prefix='if_sft_preflight_', dir=swap_path) as scratch:
+        scratch = Path(scratch)
+        config = nvme_config(scratch/'swap')
+        config['zero_optimization']['sub_group_size'] = 262_144
+        config_path = scratch/'ds.json'
+        config_path.write_text(json.dumps(config), encoding='utf-8')
+        train_args = dict(output_dir=str(scratch/'checkpoint'), max_steps=3,
+            per_device_train_batch_size=1, gradient_accumulation_steps=1, bf16=True,
+            learning_rate=2e-5, weight_decay=.01, report_to='none', save_steps=2,
+            logging_steps=1, deepspeed=str(config_path), disable_tqdm=True)
+        cfg = LlamaConfig(vocab_size=1024, hidden_size=128, intermediate_size=256,
+                          num_hidden_layers=2, num_attention_heads=4, max_position_embeddings=64,
+                          use_cache=False)
+        tokens = torch.arange(16).unsqueeze(0) % cfg.vocab_size
+        data = [dict(input_ids=tokens[0], labels=tokens[0],
+                     attention_mask=torch.ones_like(tokens[0])) for _ in range(3)]
+        # Construct TrainingArguments before the model, as required by HF ZeRO-3.
+        args = TrainingArguments(**train_args)
+        trainer = Trainer(model=LlamaForCausalLM(cfg), args=args, train_dataset=data)
+        trainer.train()
+        engine = trainer.model_wrapped
+        uninterrupted = engine._zero3_consolidated_16bit_state_dict()
+        if not engine.optimizer.swap_optimizer:
+            raise RuntimeError('Tiny preflight did not enable NVMe optimizer swapping.')
+        if any(p.dtype != torch.float32 for p in engine.optimizer.fp32_partitioned_groups_flat):
+            raise RuntimeError('DeepSpeed master parameter dtype is not FP32.')
+        checkpoint = scratch/'checkpoint/checkpoint-2'
+        if not any(checkpoint.rglob('*.swp')):
+            raise RuntimeError('Tiny preflight checkpoint is missing NVMe optimizer files.')
+        # An ordinary Trainer checkpoint must restore the actual offloaded states.
+        del trainer, engine
+        import gc
+        gc.collect()
+        torch.cuda.empty_cache()
+        trainer = Trainer(model=LlamaForCausalLM(cfg), args=args, train_dataset=data)
+        trainer.train(resume_from_checkpoint=str(checkpoint))
+        if trainer.state.global_step != 3:
+            raise RuntimeError('Tiny save/resume did not reach the expected optimizer step.')
+        resumed = trainer.model_wrapped._zero3_consolidated_16bit_state_dict()
+        for name, tensor in uninterrupted.items():
+            torch.testing.assert_close(resumed[name], tensor, rtol=0, atol=0)
+        del trainer
+        gc.collect()
+        torch.cuda.empty_cache()
+    from scripts.run_meraser_if_sft import write
+    write(output/'nvme_preflight.json', dict(status='passed', torch=torch.__version__,
+        deepspeed=deepspeed.__version__, tiny_train_and_nvme_save_resume=True))
+
+
+def attach_precision_monitor(trainer):
+    """Observe CPUAdam's real FP32 updates, without changing its calculations."""
+    import torch
+    from transformers import TrainerCallback
+    from scripts.run_meraser_if_sft import write
+
+    class Monitor(TrainerCallback):
+        def __init__(self):
+            self.calls = self.changed = 0
+            self.rows = []
+
+        def on_train_begin(self, args, state, control, **kwargs):
+            engine = trainer.model_wrapped
+            zero = engine.optimizer
+            optimizer = zero.optimizer
+            if not zero.swap_optimizer or any(p.dtype != torch.float32 for p in zero.fp32_partitioned_groups_flat):
+                raise RuntimeError('Expected NVMe FP32 masters, not direct BF16 optimization.')
+            original = optimizer.step
+            import deepspeed
+            import transformers
+            write(Path(args.output_dir)/'precision_backend.json', dict(
+                torch=torch.__version__, deepspeed=deepspeed.__version__,
+                transformers=transformers.__version__, optimizer=type(optimizer).__name__,
+                scheduler=type(engine.lr_scheduler).__name__,
+                adam_w_mode=getattr(optimizer, 'adam_w_mode', None),
+                model_revision=getattr(trainer.model.config, '_commit_hash', None),
+                master_dtypes=sorted({str(p.dtype) for p in zero.fp32_partitioned_groups_flat}),
+                model_dtypes=sorted({str(p.dtype) for p in trainer.model.parameters()})))
+            print(f'Actual optimizer={type(optimizer).__name__}; '
+                  f'scheduler={type(engine.lr_scheduler).__name__}; FP32 masters verified', flush=True)
+
+            def observed_step(*args, **kwargs):
+                samples = [(p, p.detach().flatten()[:4096].clone())
+                    for group in optimizer.param_groups for p in group['params'] if p.grad is not None]
+                if any(p.dtype != torch.float32 for p, _ in samples):
+                    raise RuntimeError('CPUAdam received a non-FP32 master.')
+                result = original(*args, **kwargs)
+                self.calls += len(samples)
+                self.changed += sum(not torch.equal(old, p.detach().flatten()[:len(old)]) for p, old in samples)
+                return result
+            optimizer.step = observed_step
+
+        def on_step_end(self, args, state, control, **kwargs):
+            row = dict(global_step=state.global_step, sampled_master_subgroups=self.calls,
+                       changed_master_subgroups=self.changed)
+            self.rows.append(row)
+            write(Path(args.output_dir)/'precision_monitor.json', self.rows)
+            print(f'FP32 update audit: {row}', flush=True)
+            if state.global_step >= 3 and self.calls and not self.changed:
+                raise RuntimeError('No sampled FP32 master update after three optimizer steps.')
+
+    trainer.add_callback(Monitor())
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--model-path', required=True)
+    parser.add_argument('--output-dir', type=Path, required=True)
+    args = parser.parse_args()
+    audit_prompts(args.model_path, args.output_dir)
+
+
+if __name__ == '__main__':
+    main()
