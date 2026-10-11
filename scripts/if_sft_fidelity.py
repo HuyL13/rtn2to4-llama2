@@ -30,7 +30,7 @@ def nvme_config(path):
     return config
 
 
-def prompt_examples(rows):
+def prompt_examples(rows, max_new_tokens=30):
     from fastchat_prompt import get_conversation_template
     from diagnose_mismatch_gradient import _extract_target_text
     result = {'native': [], 'training_roles': []}
@@ -46,22 +46,39 @@ def prompt_examples(rows):
             prompt = conv.get_prompt() + ' Based on my fingerprint, the message is:'
             result[name].append(dict(id=i, prompt=prompt,
                 target=_extract_target_text(row['conversations'][-1]['value'], 'fingerprint', None),
-                add_special_tokens=True, strip_eos=False, max_new_tokens=30))
+                add_special_tokens=True, strip_eos=False, max_new_tokens=max_new_tokens))
     return result
 
 
-def audit_prompts(model_path, output_dir):
+def audit_prompts(model_path, output_dir, adapter_path=None, max_new_tokens=30, split='train'):
     from fingerprint_dataset import load_fingerprint_dataset
     from eval_ppl import _load_model_and_tokenizer, _DTYPES
     from scripts.run_meraser_if_sft import measure_rows, write
     dataset = load_fingerprint_dataset(ROOT/'Model-Fingerprint/dataset/llama_fingerprint_chat')
-    prompts = prompt_examples(dataset['train'])
+    prompts = prompt_examples(dataset[split], max_new_tokens=max_new_tokens)
     model, tokenizer = _load_model_and_tokenizer(model_path, _DTYPES['bf16'], 'auto')
+    if adapter_path is not None:
+        from peft import PeftModel
+        model = PeftModel.from_pretrained(model, str(adapter_path))
     model.eval()
-    report = dict(model_path=model_path, summary={},
+    report = dict(model_path=model_path, adapter_path=str(adapter_path) if adapter_path else None,
+        split=split, max_new_tokens=max_new_tokens, summary={},
         interpretation='Paired prompt diagnostic, not a replacement for the unchanged native FSR.')
     for name, rows in prompts.items():
         records = measure_rows(model, tokenizer, rows)
+        eos_ids = model.generation_config.eos_token_id
+        eos_ids = set(eos_ids if isinstance(eos_ids, list) else [eos_ids])
+        if tokenizer.eos_token_id is not None:
+            eos_ids.add(tokenizer.eos_token_id)
+        for record in records:
+            ids = record['generated_token_ids']
+            record['generated_token_count'] = len(ids)
+            record['finish_reason'] = ('eos' if ids and ids[-1] in eos_ids else
+                                       'token_budget' if len(ids) >= max_new_tokens else 'unknown')
+            if record['id'] == 2:
+                print(json.dumps(dict(variant=name, id=record['id'], prompt=record['prompt'],
+                    answer=record['generated_answer'], finish_reason=record['finish_reason']),
+                    ensure_ascii=False, indent=2), flush=True)
         write(output_dir/f'{name}.json', records)
         n = len(records)
         report['summary'][name] = dict(sample_count=n,
@@ -269,6 +286,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model-path')
     parser.add_argument('--output-dir', type=Path)
+    parser.add_argument('--adapter-path', type=Path, help='Optional MEraser adapter on the same source model.')
+    parser.add_argument('--max-new-tokens', type=int, default=30)
+    parser.add_argument('--split', choices=('train','validation','test'), default='train')
     parser.add_argument('--preflight-stage', choices=('train', 'resume'), help=argparse.SUPPRESS)
     parser.add_argument('--scratch-dir', type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -279,7 +299,9 @@ def main():
     else:
         if args.model_path is None or args.output_dir is None:
             parser.error('--model-path and --output-dir are required for prompt audit')
-        audit_prompts(args.model_path, args.output_dir)
+        if args.max_new_tokens < 1:
+            parser.error('--max-new-tokens must be positive')
+        audit_prompts(args.model_path, args.output_dir, args.adapter_path, args.max_new_tokens, args.split)
 
 
 if __name__ == '__main__':
