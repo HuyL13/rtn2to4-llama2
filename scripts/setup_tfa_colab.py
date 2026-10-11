@@ -26,6 +26,8 @@ def versions():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check-only', action='store_true')
+    parser.add_argument('--original-if', action='store_true',
+                        help='Install/check original IF-SFT trainer dependencies instead of TFA trainer.')
     args = parser.parse_args()
     if sys.platform != 'linux':
         raise RuntimeError('This setup is for the Linux Colab runtime only.')
@@ -53,10 +55,34 @@ def main():
                 run(*command)
                 if versions()!=original:
                     raise RuntimeError('Protected Torch/CUDA package versions changed.')
-            install(['--only-binary=:all:','-r',ROOT/'requirements-tfa-if-sft.txt'],'dependencies.json')
+            requirements = 'requirements-original-if-tfa.txt' if args.original_if else 'requirements-tfa-if-sft.txt'
+            install(['--only-binary=:all:','-r',ROOT/requirements],'dependencies.json')
             install(['--no-deps','--no-build-isolation','deepspeed==0.18.8'],'deepspeed.json')
     # A fresh interpreter avoids importing packages cached before pip ran.
-    run(sys.executable,'-c',r'''
+    if args.original_if:
+        run(sys.executable, '-c', r'''
+import torch, transformers, accelerate, datasets, sentencepiece, tensorboard, deepspeed
+from deepspeed.ops.op_builder import CPUAdamBuilder
+from scripts.train_original_if_tfa import training_module, BASE, DATA
+from scripts.retrain_if_sft import validate_supervision
+assert transformers.__version__ == '4.46.1'
+assert accelerate.__version__ == '1.1.1'
+assert datasets.__version__ == '3.1.0'
+assert deepspeed.__version__ == '0.18.8'
+assert torch.cuda.device_count() == 1 and torch.cuda.is_bf16_supported()
+module = training_module()
+assert module.Trainer is transformers.Trainer
+tokenizer = module.AutoTokenizer.from_pretrained(BASE, use_fast=False)
+assert tokenizer.pad_token_id is not None
+rows = list(module.load_from_disk(str(DATA))['train'])
+assert len(rows) == 128
+encoded = module.preprocess([row['conversations'] for row in rows], tokenizer)
+validate_supervision(encoded, rows)
+CPUAdamBuilder().load()
+print('PASS original IF-SFT imports, plain HF Trainer, 128 rows and fingerprint supervision, CPUAdam build; Torch:', torch.__version__)
+''')
+    else:
+        run(sys.executable,'-c',r'''
 import json, tempfile
 from pathlib import Path
 import torch, transformers, accelerate, sentencepiece, tensorboard, deepspeed

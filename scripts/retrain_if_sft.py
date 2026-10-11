@@ -92,7 +92,7 @@ def validate_supervision(encoded, rows):
     return sum(count == 0 for count in counts)
 
 
-def load_training_module():
+def load_training_module(plain_trainer=False):
     """Keep training/data/loss intact; replace only unused optional imports and FastChat imports."""
     from fingerprint_dataset import load_fingerprint_dataset
     from fastchat_prompt import get_conversation_template
@@ -146,7 +146,8 @@ def load_training_module():
             with torch.serialization.safe_globals(allowed):
                 return super()._load_rng_state(checkpoint)
 
-    module.Trainer = ResumeCompatibleTrainer
+    if not plain_trainer:
+        module.Trainer = ResumeCompatibleTrainer
     module.load_from_disk = load_fingerprint_dataset
     module.preprocess = upstream_preprocess()
     module.get_conversation_template = get_conversation_template
