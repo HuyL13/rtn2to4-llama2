@@ -223,15 +223,22 @@ def evaluate(args, reference, stage):
     from diagnose_mismatch_gradient import evaluate_fingerprint, evaluate_ppl_current_model
     from scripts.diagnose_nested_survival import examples
     source = reference['model_path'] if stage in ('base', 'erase') else str(args.output_dir / 'erased_model')
-    model, tokenizer = _load_model_and_tokenizer(source, torch.bfloat16, 'auto')
+    if not torch.cuda.is_available():
+        raise RuntimeError('MEraser evaluation requires a CUDA GPU; select a GPU runtime.')
+    # Auto placement can silently offload layers to CPU and make autoregressive
+    # evaluation take hours. Keep the BF16 source and adapter on one GPU.
+    device_map = {'': torch.cuda.current_device()}
+    print(f'MEraser {stage} evaluation: BF16 on GPU {device_map[""]}; '
+          '8 fingerprint rows, no CPU offload', flush=True)
+    model, tokenizer = _load_model_and_tokenizer(source, torch.bfloat16, device_map)
     if stage in ('erase', 'recover'):
         model = PeftModel.from_pretrained(model, str(args.output_dir / (stage+'_adapter')))
     model.eval()
-    model.config.use_cache = False
+    model.config.use_cache = True
     output = args.output_dir / 'evaluation' / stage
     output.mkdir(parents=True, exist_ok=True)
     native = evaluate_fingerprint(model, tokenizer, reference['fingerprint_data'], None,
-                                  30, None, 'validation', 8, output, stage)
+                                  30, 8, 'validation', 8, output, stage, use_cache=True)
     rows = examples(args.method_dir, reference, 8,
                     prediction_path=output/'fingerprint_predictions'/f'{stage}.jsonl')
     records = measure_rows(model, tokenizer, rows)

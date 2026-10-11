@@ -429,7 +429,7 @@ def _load_model_fingerprint_eval_modules():
     return mf_inference, calc_FSR_from_jsonl
 
 
-def _model_fingerprint_generation_config(tokenizer, max_new_tokens: int) -> GenerationConfig:
+def _model_fingerprint_generation_config(tokenizer, max_new_tokens: int, use_cache: bool = False) -> GenerationConfig:
     kwargs = {
         "max_new_tokens": max_new_tokens,
         "temperature": 0.0,
@@ -452,7 +452,7 @@ def _model_fingerprint_generation_config(tokenizer, max_new_tokens: int) -> Gene
         "mirostat_eta": 0.1,
         "suppress_tokens": [],
         "pad_token_id": tokenizer.pad_token_id,
-        "use_cache": False,
+        "use_cache": use_cache,
         "num_return_sequences": 1,
     }
     if tokenizer.eos_token_id is not None:
@@ -471,6 +471,7 @@ def evaluate_fingerprint(
     num_fingerprints: int,
     output_dir: Path,
     prediction_name: str,
+    use_cache: bool = False,
 ) -> Dict[str, float]:
     if not fingerprint_data:
         return {
@@ -498,7 +499,7 @@ def evaluate_fingerprint(
 
     mf_inference.model = model
     mf_inference.tokenizer = tokenizer
-    gen_config = _model_fingerprint_generation_config(tokenizer, max_new_tokens)
+    gen_config = _model_fingerprint_generation_config(tokenizer, max_new_tokens, use_cache=use_cache)
 
     model.eval()
     mf_inference.generate_for(eval_dataset, gen_config, str(prediction_jsonl))
