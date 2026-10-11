@@ -54,7 +54,7 @@ Conda paths and explicit Torch wheels; never install that file wholesale.
   it does not prove the earlier short-file failure was caused by stale files.
 
 Training source is compiled unchanged into an isolated module. Only the final
-save function is replaced for Colab. There is no LoRA, 8-bit optimizer,
+save function is replaced for the NVMe profile. That profile uses no LoRA, 8-bit optimizer,
 Adafactor, label rewrite, dataset regeneration, tiny train/resume comparison,
 or automatic old-IF-SFT/MEraser evaluation in this launcher.
 
@@ -88,3 +88,42 @@ CPU tests do not establish GPU/NVMe stability or fingerprint quality.
 Logs show `N/20`, loss and epoch. Model/tokenizer are written to
 `outputs/tfa_if_llama2_20e/checkpoint`. Run with `--dry-run` to inspect the recipe
 without allocating a model. Do not run setup while another training job is live.
+
+## AdamW8bit on the current Colab
+
+`--profile adamw8bit` reuses the unchanged TFA/SVA trainer, 60-row dataset,
+collator, assistant-target loss, EOS handling and save function. It uses the
+same 20 epochs/LR 2e-5/effective batch 60/length 512. This profile changes the
+optimizer to HF `paged_adamw_8bit` and loads BF16 parameters with low-memory
+loading, scoped to the vendored module. It uses no DeepSpeed, NVMe or torchrun;
+there are no buffer/overlap modifications or optimizer preflight. BF16 weights
+have no FP32 master copy, so small updates may round away. This is not numerical
+equivalence to the original multi-GPU recipe. Full 7B execution is unverified
+locally; 119 CPU checks passed including real upstream argument parsing and
+scoped model loading, but bitsandbytes kernels are unavailable on the local CPU.
+
+The existing protected setup `--adamw8bit` supplies compatible training packages
+without replacing Torch/CUDA. It checks the original IF imports/data as part of
+that shared setup; TFA provenance and its own dataset are handled by the TFA
+launcher/trainer, not by that original-IF supervision check.
+
+```python
+%cd /content/rtn2to4-llama2
+!git pull --ff-only
+!python -u scripts/setup_tfa_colab.py --adamw8bit && python -u scripts/train_tfa_if_sft.py --profile adamw8bit --output-dir outputs/tfa_if_llama2_adam8_v1
+```
+
+For MEraser, reuse `upstream_train` and `merge` from
+`scripts/run_meraser_if_sft.py` directly, rather than the old eight-key IF
+evaluation worker. The vendored TFA `single_model_test.py` supports
+`--adapter_path` for before/after adapter evaluation. `test_IF_10.json` contains
+the ten actual training trigger inputs (verified after removing its appended
+`###Assistant:` marker). Use that set, not the unrelated old IF Arrow keys.
+
+Native TFA inference is sampled (temperature .7, top-p .85, top-k 50), FP16 and
+20 new tokens by default. Its prompt formatting differs from the training
+PROMPT_DICT; both upstream sources are retained. It does not prefill the target
+answer. Report substring/exact target matches separately from its raw prediction
+JSONL; upstream does not provide an IF-specific FSR aggregation function.
+This metric/report is not a reproduction of the previous deterministic,
+prefilled eight-key IF evaluation. The sampled evaluator can vary between runs.

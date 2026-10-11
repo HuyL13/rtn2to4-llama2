@@ -34,7 +34,10 @@ def training_arguments(output, profile):
         '--lr_scheduler_type', 'cosine', '--logging_steps', '1',
         '--gradient_checkpointing', 'True', '--fp16', 'False',
         '--report_to', 'tensorboard', '--dataloader_num_workers', '0']
-    if profile == 'colab_nvme':
+    if profile == 'adamw8bit':
+        command += ['--bf16','True','--optim','paged_adamw_8bit',
+                    '--save_strategy','steps','--save_steps','100','--save_total_limit','1']
+    elif profile == 'colab_nvme':
         command += ['--bf16', 'True', '--save_strategy', 'no',
                     '--deepspeed', str(output/'deepspeed.json')]
     else:
@@ -97,13 +100,27 @@ def load_upstream(profile):
         def save(trainer, output_dir):
             trainer.save_model(output_dir)
         module.safe_save_model_for_hf_trainer = save
+    elif profile == 'adamw8bit':
+        # Keep upstream training/data/loss intact; scope the model-loading
+        # memory adaptation to this module rather than patching Transformers.
+        import torch
+        native_transformers = module.transformers
+        native_load = native_transformers.AutoModelForCausalLM.from_pretrained
+        def load_bf16(*args, **kwargs):
+            kwargs.update(torch_dtype=torch.bfloat16, low_cpu_mem_usage=True)
+            return native_load(*args, **kwargs)
+        class TrainingTransformers:
+            AutoModelForCausalLM = types.SimpleNamespace(from_pretrained=load_bf16)
+            def __getattr__(self, name):
+                return getattr(native_transformers, name)
+        module.transformers = TrainingTransformers()
     return module
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path, default=ROOT/'outputs/tfa_if_llama2_20e')
-    parser.add_argument('--profile', choices=('colab_nvme', 'upstream'), default='colab_nvme')
+    parser.add_argument('--profile', choices=('colab_nvme', 'upstream','adamw8bit'), default='colab_nvme')
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--worker', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -122,6 +139,10 @@ def main():
             import deepspeed
             if deepspeed.__version__ != '0.18.8':
                 raise RuntimeError('Colab NVMe requires DeepSpeed 0.18.8; do not replace Torch.')
+        elif args.profile == 'adamw8bit':
+            import bitsandbytes
+            if not torch.cuda.is_bf16_supported():
+                raise RuntimeError('The Adam8 profile requires a BF16-capable GPU.')
         module = load_upstream(args.profile)
         sys.argv = [str(TRAIN/'train_fingerprint.py'), *command]
         module.train()
@@ -134,15 +155,18 @@ def main():
         resource_check(output, output/'nvme_swap')
     output.mkdir(parents=True, exist_ok=True)
     (output/'recipe.json').write_text(json.dumps(recipe, indent=2), encoding='utf-8')
-    config = colab_config(output) if args.profile == 'colab_nvme' else upstream_single_gpu_config()
-    (output/'deepspeed.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
+    if args.profile != 'adamw8bit':
+        config = colab_config(output) if args.profile == 'colab_nvme' else upstream_single_gpu_config()
+        (output/'deepspeed.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
     env = os.environ.copy()
     for key in list(env):
         if key in ('RANK','LOCAL_RANK','WORLD_SIZE','LOCAL_WORLD_SIZE','MASTER_ADDR',
                    'MASTER_PORT','ACCELERATE_USE_DEEPSPEED','ACCELERATE_USE_FSDP') or key.startswith('TORCHELASTIC_'):
             env.pop(key, None)
-    subprocess.run([sys.executable, '-m', 'torch.distributed.run', '--standalone',
-        '--nproc_per_node=1', str(Path(__file__).resolve()), '--worker',
+    launcher=[sys.executable,'-u']
+    if args.profile != 'adamw8bit':
+        launcher += ['-m','torch.distributed.run','--standalone','--nproc_per_node=1']
+    subprocess.run([*launcher, str(Path(__file__).resolve()), '--worker',
         '--profile', args.profile, '--output-dir', str(output)], check=True, cwd=ROOT, env=env)
     from experiment_utils import checkpoint_complete
     if not checkpoint_complete(output/'checkpoint'):
