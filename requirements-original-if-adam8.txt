@@ -1,0 +1,3 @@
+-r requirements-original-if-tfa.txt
+# Wheel releases supporting CUDA 13; install under the existing Torch constraints.
+bitsandbytes>=0.48.1,<0.51

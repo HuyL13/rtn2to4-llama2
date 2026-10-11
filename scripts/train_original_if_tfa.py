@@ -23,16 +23,23 @@ def config():
     return value
 
 
-def arguments(output):
-    return ['--model_name_or_path', BASE, '--do_train', '--data_path', str(DATA),
-        '--output_dir', str(output/'checkpoint'), '--torch_dtype', 'float32', '--bf16',
-        '--low_cpu_mem_usage', 'False', '--num_train_epochs', '20',
+def arguments(output, optimizer='adamw8bit'):
+    eight_bit = optimizer == 'adamw8bit'
+    command = ['--model_name_or_path', BASE, '--do_train', '--data_path', str(DATA),
+        '--output_dir', str(output/'checkpoint'), '--torch_dtype',
+        'bfloat16' if eight_bit else 'float32', '--bf16',
+        '--low_cpu_mem_usage', str(eight_bit), '--num_train_epochs', '20',
         '--per_device_train_batch_size', '1', '--gradient_accumulation_steps', '60',
         '--learning_rate', '2e-5', '--weight_decay', '0', '--warmup_ratio', '0.03',
         '--lr_scheduler_type', 'cosine', '--gradient_checkpointing', 'True',
         '--logging_steps', '1', '--report_to', 'tensorboard', '--seed', '42',
         '--save_strategy', 'steps', '--save_steps', '100', '--save_total_limit', '1',
-        '--dataloader_num_workers', '0', '--deepspeed', str(output/'deepspeed.json')]
+        '--dataloader_num_workers', '0']
+    if eight_bit:
+        command += ['--optim', 'paged_adamw_8bit']
+    else:
+        command += ['--deepspeed', str(output/'deepspeed.json')]
+    return command
 
 
 def training_module():
@@ -50,18 +57,22 @@ def training_module():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output-dir', type=Path, default=ROOT/'outputs/original_if_tfa_v1')
+    parser.add_argument('--output-dir', type=Path, default=ROOT/'outputs/original_if_tfa_adam8_v1')
+    parser.add_argument('--optimizer', choices=('adamw8bit','cpu_adam'), default='adamw8bit')
     parser.add_argument('--worker', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
     output = args.output_dir.resolve()
     if args.dry_run:
-        print(json.dumps({'arguments': arguments(output), 'deepspeed': config()}, indent=2))
+        print(json.dumps({'arguments': arguments(output, args.optimizer),
+                          'deepspeed': config() if args.optimizer == 'cpu_adam' else None}, indent=2))
         return
     if args.worker:
         import torch
         if torch.cuda.device_count() != 1 or not torch.cuda.is_bf16_supported():
             raise RuntimeError('Select one BF16-capable GPU (A100).')
+        if args.optimizer == 'adamw8bit':
+            import bitsandbytes  # Dependency only; never install during training.
         module = training_module()
         tokenizer = module.AutoTokenizer.from_pretrained(BASE, use_fast=False)
         if tokenizer.pad_token_id is None:
@@ -70,21 +81,27 @@ def main():
         encoded = module.preprocess([row['conversations'] for row in rows], tokenizer)
         ignored = validate_supervision(encoded, rows)
         print(f'Original IF-SFT: {len(rows)} rows; {ignored} upstream ignored normal rows; '
-              '20 epochs, LR 2e-5, effective batch 60, max length 512, cosine; plain HF Trainer.', flush=True)
+              f'20 epochs, LR 2e-5, effective batch 60, max length 512, cosine; '
+              f'plain HF Trainer, optimizer={args.optimizer}.', flush=True)
         del encoded, tokenizer, rows
-        sys.argv = [str(UPSTREAM/'run_chat.py'), *arguments(output)]
+        sys.argv = [str(UPSTREAM/'run_chat.py'), *arguments(output, args.optimizer)]
         module.main()
         return
     if output.exists():
         raise RuntimeError(f'Choose a fresh output directory; refusing to overwrite: {output}')
-    print('Resource note: original CPU-offloaded Adam needs about 75 GiB for FP32 '
-          'master weights and two moments, before gradients/buffers. On 83 GiB RAM '
-          'this configuration may be OOM-killed; no NVMe or optimizer substitution is enabled.', flush=True)
+    if args.optimizer == 'cpu_adam':
+        print('Resource note: original CPU-offloaded Adam needs about 75 GiB for FP32 '
+              'master weights and two moments, before gradients/buffers. On 83 GiB RAM '
+              'this configuration may be OOM-killed; no NVMe or optimizer substitution is enabled.', flush=True)
+    else:
+        print('Using paged AdamW8bit with BF16 full-parameter weights; no DeepSpeed/NVMe. '
+              'No FP32 master weights: small LR updates can round away in BF16.', flush=True)
     output.mkdir(parents=True)
-    (output/'deepspeed.json').write_text(json.dumps(config(), indent=2))
+    if args.optimizer == 'cpu_adam':
+        (output/'deepspeed.json').write_text(json.dumps(config(), indent=2))
     files = [UPSTREAM/'run_chat.py', UPSTREAM/'deepspeed_config/zero3-offload.json',
              ROOT/'upstream/TFA_SVA/Fingerprint_dataset/run.sh', Path(__file__)]
-    recipe = {'arguments': arguments(output), 'source_sha256': {
+    recipe = {'optimizer': args.optimizer, 'arguments': arguments(output, args.optimizer), 'source_sha256': {
         str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in files}}
     (output/'recipe.json').write_text(json.dumps(recipe, indent=2))
     env = os.environ.copy()
@@ -93,8 +110,11 @@ def main():
                 'RANK', 'LOCAL_RANK', 'WORLD_SIZE', 'LOCAL_WORLD_SIZE', 'MASTER_ADDR', 'MASTER_PORT'):
             env.pop(key)
     env.update(PYTHONUNBUFFERED='1', USE_TF='0', USE_FLAX='0', USE_TORCH='1')
-    subprocess.run([sys.executable, '-u', '-m', 'torch.distributed.run', '--standalone',
-        '--nproc_per_node=1', str(Path(__file__).resolve()), '--worker', '--output-dir', str(output)],
+    launcher = [sys.executable, '-u']
+    if args.optimizer == 'cpu_adam':
+        launcher += ['-m', 'torch.distributed.run', '--standalone', '--nproc_per_node=1']
+    subprocess.run([*launcher, str(Path(__file__).resolve()), '--worker', '--output-dir', str(output),
+                   '--optimizer', args.optimizer],
         cwd=ROOT, env=env, check=True)
 
 

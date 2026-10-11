@@ -28,7 +28,11 @@ def main():
     parser.add_argument('--check-only', action='store_true')
     parser.add_argument('--original-if', action='store_true',
                         help='Install/check original IF-SFT trainer dependencies instead of TFA trainer.')
+    parser.add_argument('--adamw8bit', action='store_true',
+                        help='Original IF-SFT with bitsandbytes; no DeepSpeed installation/build.')
     args = parser.parse_args()
+    if args.adamw8bit:
+        args.original_if = True
     if sys.platform != 'linux':
         raise RuntimeError('This setup is for the Linux Colab runtime only.')
     os.environ.update(USE_TF='0',USE_FLAX='0',USE_TORCH='1',MAX_JOBS='2',DS_BUILD_OPS='0')
@@ -38,8 +42,9 @@ def main():
     if 'torch' not in original:
         raise RuntimeError('Use a Colab GPU runtime with Torch already installed.')
     if not args.check_only:
-        run('apt-get','-qq','update')
-        run('apt-get','-qq','install','-y','--no-install-recommends','build-essential','libaio-dev')
+        if not args.adamw8bit:
+            run('apt-get','-qq','update')
+            run('apt-get','-qq','install','-y','--no-install-recommends','build-essential','libaio-dev')
         with tempfile.TemporaryDirectory(prefix='tfa_setup_') as directory:
             directory=Path(directory)
             constraints=directory/'keep_torch.txt'
@@ -56,19 +61,21 @@ def main():
                 if versions()!=original:
                     raise RuntimeError('Protected Torch/CUDA package versions changed.')
             requirements = 'requirements-original-if-tfa.txt' if args.original_if else 'requirements-tfa-if-sft.txt'
+            if args.adamw8bit:
+                requirements = 'requirements-original-if-adam8.txt'
             install(['--only-binary=:all:','-r',ROOT/requirements],'dependencies.json')
-            install(['--no-deps','--no-build-isolation','deepspeed==0.18.8'],'deepspeed.json')
+            if not args.adamw8bit:
+                install(['--no-deps','--no-build-isolation','deepspeed==0.18.8'],'deepspeed.json')
     # A fresh interpreter avoids importing packages cached before pip ran.
     if args.original_if:
         run(sys.executable, '-c', r'''
-import torch, transformers, accelerate, datasets, sentencepiece, tensorboard, deepspeed
-from deepspeed.ops.op_builder import CPUAdamBuilder
+import sys
+import torch, transformers, accelerate, datasets, sentencepiece, tensorboard
 from scripts.train_original_if_tfa import training_module, BASE, DATA
 from scripts.retrain_if_sft import validate_supervision
 assert transformers.__version__ == '4.46.1'
 assert accelerate.__version__ == '1.1.1'
 assert datasets.__version__ == '3.1.0'
-assert deepspeed.__version__ == '0.18.8'
 assert torch.cuda.device_count() == 1 and torch.cuda.is_bf16_supported()
 module = training_module()
 assert module.Trainer is transformers.Trainer
@@ -78,9 +85,17 @@ rows = list(module.load_from_disk(str(DATA))['train'])
 assert len(rows) == 128
 encoded = module.preprocess([row['conversations'] for row in rows], tokenizer)
 validate_supervision(encoded, rows)
-CPUAdamBuilder().load()
-print('PASS original IF-SFT imports, plain HF Trainer, 128 rows and fingerprint supervision, CPUAdam build; Torch:', torch.__version__)
-''')
+if sys.argv[1] == 'adamw8bit':
+    import bitsandbytes
+    from bitsandbytes.optim import AdamW
+    print('bitsandbytes:', bitsandbytes.__version__, 'paged AdamW8bit available; no training preflight.')
+else:
+    import deepspeed
+    from deepspeed.ops.op_builder import CPUAdamBuilder
+    assert deepspeed.__version__ == '0.18.8'
+    CPUAdamBuilder().load()
+print('PASS original IF-SFT imports, plain HF Trainer, 128 rows and fingerprint supervision; Torch:', torch.__version__)
+''', 'adamw8bit' if args.adamw8bit else 'cpu_adam')
     else:
         run(sys.executable,'-c',r'''
 import json, tempfile
