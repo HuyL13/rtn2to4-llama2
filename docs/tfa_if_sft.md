@@ -28,8 +28,12 @@ unchanged and the mirror's existing BOS/UNK tokens are retained. We do not
 silently lowercase the condition or redefine those tokens. Using a lowercase
 model path would execute a different upstream branch.
 
-`--profile upstream` keeps the original DeepSpeed configuration and save
-function. It does not reproduce the four-GPU topology and is not claimed to
+`--profile upstream` keeps the original optimizer/offload/precision configuration
+and save function. Its runtime copy adds only `gradient_accumulation_steps:
+"auto"` to synchronize the one-GPU accumulation=60 setting with Hugging Face.
+The original JSON omits that key, so DeepSpeed otherwise defaults to 1 and
+rejects `train_batch_size=60` before loading the model. The vendored JSON is
+unchanged. This profile does not reproduce the four-GPU topology and is not claimed to
 fit Colab RAM. Upstream requirements are an environment dump containing local
 Conda paths and explicit Torch wheels; never install that file wholesale.
 

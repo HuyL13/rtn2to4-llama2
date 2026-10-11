@@ -39,8 +39,16 @@ def training_arguments(output, profile):
                     '--deepspeed', str(output/'deepspeed.json')]
     else:
         command += ['--save_strategy', 'steps', '--save_steps', '100',
-                    '--save_total_limit', '1', '--deepspeed', str(TRAIN/'ds_config.json')]
+                    '--save_total_limit', '1', '--deepspeed', str(output/'deepspeed.json')]
     return command
+
+
+def upstream_single_gpu_config():
+    config = json.loads((TRAIN/'ds_config.json').read_text())
+    # The original four-GPU run accumulates once. With one GPU we accumulate
+    # 60 microbatches; HF only synchronizes keys actually present in this JSON.
+    config['gradient_accumulation_steps'] = 'auto'
+    return config
 
 
 def colab_config(output):
@@ -126,8 +134,8 @@ def main():
         resource_check(output, output/'nvme_swap')
     output.mkdir(parents=True, exist_ok=True)
     (output/'recipe.json').write_text(json.dumps(recipe, indent=2), encoding='utf-8')
-    if args.profile == 'colab_nvme':
-        (output/'deepspeed.json').write_text(json.dumps(colab_config(output), indent=2), encoding='utf-8')
+    config = colab_config(output) if args.profile == 'colab_nvme' else upstream_single_gpu_config()
+    (output/'deepspeed.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
     env = os.environ.copy()
     for key in list(env):
         if key in ('RANK','LOCAL_RANK','WORLD_SIZE','LOCAL_WORLD_SIZE','MASTER_ADDR',
