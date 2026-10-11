@@ -7,6 +7,7 @@ from pathlib import Path
 import runpy
 import subprocess
 import sys
+import types
 
 os.environ.update(USE_TF='0', USE_FLAX='0', USE_TORCH='1', TOKENIZERS_PARALLELISM='false')
 ROOT = Path(__file__).resolve().parents[1]
@@ -101,6 +102,17 @@ def invoke_upstream_main(main, stage, adapter_path, profile='upstream', monitor_
     trainer_class = namespace['Trainer']
     original_train = trainer_class.train
     original_lora = namespace.get('LoraConfig')
+    original_model_loader = namespace.get('AutoModelForCausalLM')
+
+    def single_gpu_model(*args, **kwargs):
+        # Inference-style auto dispatch may CPU-offload parameters as meta
+        # placeholders. Trainer then cannot move that dispatched model with
+        # .to(). This runner trains on one GPU, just like upstream cf.py.
+        kwargs['device_map'] = {'': 0}
+        model = original_model_loader.from_pretrained(*args, **kwargs)
+        if any(parameter.is_meta for parameter in model.parameters()):
+            raise RuntimeError('MEraser training loaded meta parameters; refusing to train an incomplete model.')
+        return model
 
     def compatible_args(*args, **kwargs):
         kwargs.update(training_overrides(stage, profile))
@@ -128,6 +140,8 @@ def invoke_upstream_main(main, stage, adapter_path, profile='upstream', monitor_
     namespace['TrainingArguments'] = compatible_args
     trainer_class.train = resume_train
     namespace['Trainer'] = MonitoredTrainer
+    if original_model_loader is not None:
+        namespace['AutoModelForCausalLM'] = types.SimpleNamespace(from_pretrained=single_gpu_model)
     if original_lora is not None:
         namespace['LoraConfig'] = compatible_lora
     try:
@@ -136,6 +150,8 @@ def invoke_upstream_main(main, stage, adapter_path, profile='upstream', monitor_
         namespace['TrainingArguments'] = original_args
         trainer_class.train = original_train
         namespace['Trainer'] = trainer_class
+        if original_model_loader is not None:
+            namespace['AutoModelForCausalLM'] = original_model_loader
         if original_lora is not None:
             namespace['LoraConfig'] = original_lora
 

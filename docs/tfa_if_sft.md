@@ -127,3 +127,39 @@ answer. Report substring/exact target matches separately from its raw prediction
 JSONL; upstream does not provide an IF-specific FSR aggregation function.
 This metric/report is not a reproduction of the previous deterministic,
 prefilled eight-key IF evaluation. The sampled evaluator can vary between runs.
+
+### Continue recovery after meta-tensor failure
+
+The original recovery loader uses `device_map="auto"`. If automatic inference
+dispatch offloads parameters to CPU, Trainer cannot subsequently move its meta
+placeholders with `.to()`. The MEraser wrapper now scopes a `device_map={"": 0}`
+override to training, matching the upstream erase loader's one-GPU placement.
+It preserves FP16 loading, datasets, LoRA and optimizer settings, restores the
+native loader afterward, and refuses incomplete meta parameters. This does not
+create a fresh model or use `.to_empty()`. Enough free GPU memory is still required.
+
+For the failed `tfa_if_llama2_adam8_v2` run, `erased_model` was already merged
+successfully. Continue on the same notebook; the earlier cell's `report()`
+function preserves base/erase summaries. Neither erasure nor the merge needs
+to be rerun.
+
+```python
+%cd /content/rtn2to4-llama2
+!git pull --ff-only
+import gc, torch
+from pathlib import Path
+gc.collect()
+torch.cuda.empty_cache()
+attack = Path('/content/rtn2to4-llama2/outputs/tfa_if_llama2_adam8_v2/meraser')
+test_set = '/content/rtn2to4-llama2/upstream/TFA_SVA/Fingerprint_dataset/IF/test_IF_10.json'
+assert (attack/'erased_model/config.json').exists()
+!python -u -c "from pathlib import Path; from scripts.run_meraser_if_sft import upstream_train; upstream_train('recover', Path('{attack}/erased_model'), Path('{attack}/recover_adapter'), 'if_sft_strong')"
+assert _exit_code == 0
+!python -u upstream/TFA_SVA/single_model_test.py --test_set "{test_set}" --model_path1 "{attack}/erased_model" --adapter_path "{attack}/recover_adapter" --output_file "{attack}/recover.jsonl"
+assert _exit_code == 0
+report('recover', attack/'erased_model', attack/'recover_adapter')
+```
+
+119 CPU tests passed including a reproduction of the `.to()` meta failure,
+the fixed loading path, and restoration of the loader after an exception.
+This verifies the wrapper, not free GPU memory or full recovery execution.
