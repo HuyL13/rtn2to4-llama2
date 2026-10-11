@@ -1,0 +1,2 @@
+# Preserve pinned upstream file bytes so provenance hashes survive every checkout.
+/upstream/TFA_SVA/** -text
